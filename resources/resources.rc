@@ -1,0 +1,22 @@
+// resources/resources.rc
+
+#include "../src/resource.h"
+
+// Icon
+IDI_APPICON ICON "icon.ico"
+
+// Menu
+IDM_TRAY_MENU MENU
+BEGIN
+    POPUP "Tray Menu"
+    BEGIN
+        MENUITEM "Lock/Unlock Input", IDM_LOCK_UNLOCK
+        MENUITEM SEPARATOR
+        MENUITEM "Settings...", IDM_SETTINGS
+        MENUITEM "Change Hotkeys...", IDM_CHANGE_HOTKEYS
+        MENUITEM "Change Password...", IDM_CHANGE_PASSWORD
+        MENUITEM SEPARATOR
+        MENUITEM "About", IDM_ABOUT
+        MENUITEM "Exit", IDM_EXIT
+    END
+END
