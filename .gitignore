@@ -1,0 +1,126 @@
+# Compiled Object files
+*.o
+*.obj
+*.elf
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+# Debug files
+*.dSYM/
+*.su
+*.idb
+*.pdb
+
+# Visual Studio files
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.sln
+*.suo
+*.user
+*.sdf
+*.opensdf
+*.db
+*.ipch
+.vs/
+Debug/
+Release/
+x64/
+x86/
+
+# CodeBlocks files
+*.cbp
+*.layout
+*.depend
+
+# Dev-C++ files
+*.dev
+
+# Qt Creator files
+*.pro.user
+*.pro.user.*
+CMakeLists.txt.user
+
+# CLion files
+.idea/
+cmake-build-*/
+
+# VSCode files (keep launch.json but ignore others)
+.vscode/
+!.vscode/launch.json
+!.vscode/tasks.json
+
+# MinGW/MSYS2 build artifacts
+*.a
+*.la
+*.lai
+*.so.*
+
+# Resource compiled files
+*.res
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+
+# Config files (if containing sensitive data)
+config.ini
+settings.cfg
+
+# Test executables
+test_*
+*_test
+*_test.exe
+
+# Build directories
+build/
+bin/
+obj/
+dist/
+
+# Package managers
+vcpkg_installed/
+packages/
+
+# Backup files
+*.backup
+*.orig
