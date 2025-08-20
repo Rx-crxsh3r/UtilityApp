@@ -55,14 +55,11 @@ A lightweight, high-performance Windows utility application written in C++ using
 
 4. **Link and create executable**
    ```bash
-   g++ main.o tray_icon.o input_blocker.o failsafe.o notifications.o ../resources/resources.o -luser32 -lkernel32 -lshell32 -lgdi32 -o utilityapp.exe
+   g++ main.o tray_icon.o input_blocker.o failsafe.o notifications.o ../resources/resources.o -mwindows -luser32 -lkernel32 -lshell32 -lgdi32 -o utilityapp.exe
    ```
 
-### Quick Build Script
-```bash
-# One-liner build command
-cd src && g++ main.cpp tray_icon.cpp input_blocker.cpp failsafe.cpp notifications.cpp ../resources/resources.o -luser32 -lkernel32 -lshell32 -lgdi32 -o utilityapp.exe
-```
+### Quick Build 
+_**You can alternatively use the "build.bat" to create the app or the "clean.bat" to remove the existing build files.**_
 
 ## 📁 Project Structure
 
@@ -102,7 +99,7 @@ UtilityApp/
 | `failsafe.*` | Emergency exit mechanism with timing logic |
 | `notifications.*` | Windows toast notifications and balloon tips |
 
-### Performance Characteristics
+### Performance 
 - **Memory Usage**: < 5MB RAM when idle
 - **CPU Usage**: ~0% when idle, minimal during input processing
 - **Startup Time**: < 100ms

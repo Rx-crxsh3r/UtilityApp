@@ -124,3 +124,7 @@ packages/
 # Backup files
 *.backup
 *.orig
+
+
+#additional miscellaneous files
+notes/

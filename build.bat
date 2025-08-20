@@ -29,7 +29,8 @@ if %errorlevel% neq 0 (
 
 REM Link executable
 echo [3/3] Linking executable...
-g++ main.o tray_icon.o input_blocker.o failsafe.o notifications.o ../resources/resources.o -luser32 -lkernel32 -lshell32 -lgdi32 -o utilityapp.exe
+REM ✅ ADDED -mwindows FLAG HERE to create a GUI app instead of a console app
+g++ main.o tray_icon.o input_blocker.o failsafe.o notifications.o ../resources/resources.o -mwindows -luser32 -lkernel32 -lshell32 -lgdi32 -o utilityapp.exe
 if %errorlevel% neq 0 (
     echo ERROR: Failed to link executable
     pause

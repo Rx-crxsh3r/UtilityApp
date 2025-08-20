@@ -12,6 +12,7 @@ static HHOOK g_mouseHook = NULL;
 static bool g_isLocked = false;
 static std::wstring g_passwordBuffer = L"";
 const std::wstring UNLOCK_PASSWORD = L"10203040";
+static HWND g_cachedHwnd = NULL; // Cache window handle to avoid FindWindow calls
 
 // Reference to the main window and failsafe handler (declared in main.cpp)
 extern Failsafe failsafeHandler;
@@ -19,63 +20,90 @@ extern const char CLASS_NAME[];
 
 // Low-level keyboard hook procedure
 LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
-    if (nCode == HC_ACTION) {
-        KBDLLHOOKSTRUCT* pkbhs = (KBDLLHOOKSTRUCT*)lParam;
+    // CRITICAL: Process only HC_ACTION and return immediately for others
+    if (nCode != HC_ACTION) {
+        return CallNextHookEx(g_keyboardHook, nCode, wParam, lParam);
+    }
+    
+    KBDLLHOOKSTRUCT* pkbhs = (KBDLLHOOKSTRUCT*)lParam;
 
-        // Failsafe mechanism: Check for ESC presses
-        if (pkbhs->vkCode == VK_ESCAPE && wParam == WM_KEYDOWN) {
-            if (failsafeHandler.recordEscPress()) {
-                HWND hwnd = FindWindowA(CLASS_NAME, NULL);
-                if(hwnd) {
-                    ShowNotification(hwnd, NOTIFY_FAILSAFE_TRIGGERED);
-                    PostMessage(hwnd, WM_CLOSE, 0, 0);
-                }
+    // Failsafe mechanism: Check for ESC presses (minimal processing)
+    if (pkbhs->vkCode == VK_ESCAPE && wParam == WM_KEYDOWN) {
+        if (failsafeHandler.recordEscPress()) {
+            // Use cached window handle to avoid FindWindow call
+            if (g_cachedHwnd) {
+                PostMessage(g_cachedHwnd, WM_CLOSE, 0, 0);
             }
-        }
-        
-        // If locked, process input
-        if (g_isLocked) {
-            if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN) {
-                // Check if the key is a number (0-9)
-                if (pkbhs->vkCode >= '0' && pkbhs->vkCode <= '9') {
-                    g_passwordBuffer += (wchar_t)pkbhs->vkCode;
-                    
-                    // If buffer exceeds password length, trim it
-                    if (g_passwordBuffer.length() > UNLOCK_PASSWORD.length()) {
-                        g_passwordBuffer = g_passwordBuffer.substr(g_passwordBuffer.length() - UNLOCK_PASSWORD.length());
-                    }
-
-                    // Check for password match
-                    if (g_passwordBuffer.find(UNLOCK_PASSWORD) != std::wstring::npos) {
-                        g_isLocked = false; // Unlock
-                        g_passwordBuffer.clear();
-                        HWND hwnd = FindWindowA(CLASS_NAME, NULL);
-                        if(hwnd) ShowNotification(hwnd, NOTIFY_INPUT_UNLOCKED);
-                    }
-                } else {
-                    // Reset buffer if a non-numeric key is pressed
-                    g_passwordBuffer.clear();
-                }
-            }
-            
-            // Block the input by returning a non-zero value
-            return 1; 
         }
     }
     
-    // Pass the message on to the next hook in the chain
+    // If locked, block input (minimal processing)
+    if (g_isLocked) {
+        // CRITICAL: Allow modifier key releases and certain system keys to pass through
+        // This prevents the "sticky keys" issue where Ctrl/Shift remain pressed
+        if (wParam == WM_KEYUP || wParam == WM_SYSKEYUP) {
+            // Always allow key releases for modifier keys to maintain proper keyboard state
+            if (pkbhs->vkCode == VK_CONTROL || pkbhs->vkCode == VK_LCONTROL || pkbhs->vkCode == VK_RCONTROL ||
+                pkbhs->vkCode == VK_SHIFT || pkbhs->vkCode == VK_LSHIFT || pkbhs->vkCode == VK_RSHIFT ||
+                pkbhs->vkCode == VK_MENU || pkbhs->vkCode == VK_LMENU || pkbhs->vkCode == VK_RMENU ||
+                pkbhs->vkCode == VK_LWIN || pkbhs->vkCode == VK_RWIN) {
+                return CallNextHookEx(g_keyboardHook, nCode, wParam, lParam); // Allow modifier releases
+            }
+        }
+        
+        if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN) {
+            // Only process numeric keys for password
+            if (pkbhs->vkCode >= '0' && pkbhs->vkCode <= '9') {
+                g_passwordBuffer += (wchar_t)pkbhs->vkCode;
+                
+                // Keep buffer manageable
+                if (g_passwordBuffer.length() > 12) { // Increased from exact length
+                    g_passwordBuffer = g_passwordBuffer.substr(g_passwordBuffer.length() - 8);
+                }
+
+                // Quick password check (defer expensive operations)
+                if (g_passwordBuffer.length() >= UNLOCK_PASSWORD.length()) {
+                    size_t pos = g_passwordBuffer.find(UNLOCK_PASSWORD);
+                    if (pos != std::wstring::npos) {
+                        // CRITICAL: Defer state change and notification to avoid hook delays
+                        if (g_cachedHwnd) {
+                            PostMessage(g_cachedHwnd, WM_USER + 100, 0, 0); // Custom unlock message
+                        }
+                        g_passwordBuffer.clear();
+                    }
+                }
+            } else {
+                g_passwordBuffer.clear();
+            }
+        }
+        
+        // Block input when locked (but modifier releases were already handled above)
+        return 1; 
+    }
+    
+    // Pass through when not locked
     return CallNextHookEx(g_keyboardHook, nCode, wParam, lParam);
 }
 
 // Low-level mouse hook procedure
 LRESULT CALLBACK LowLevelMouseProc(int nCode, WPARAM wParam, LPARAM lParam) {
-    if (nCode == HC_ACTION && g_isLocked) {
-        // Block all mouse input when locked
-        return 1;
+    // CRITICAL: Process only HC_ACTION and return immediately for others
+    if (nCode != HC_ACTION) {
+        return CallNextHookEx(g_mouseHook, nCode, wParam, lParam);
     }
     
-    // Pass the message on to the next hook in the chain
+    // If locked, block all mouse input (minimal processing)
+    if (g_isLocked) {
+        return 1; // Block input
+    }
+    
+    // Pass through when not locked
     return CallNextHookEx(g_mouseHook, nCode, wParam, lParam);
+}
+
+// Initialize input blocker with cached window handle
+void InitializeInputBlocker(HWND hwnd) {
+    g_cachedHwnd = hwnd;
 }
 
 void ToggleInputLock(HWND hwnd) {

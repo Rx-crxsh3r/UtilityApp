@@ -3,6 +3,9 @@
 #pragma once
 #include <windows.h>
 
+// Initialize the input blocker with cached window handle for performance
+void InitializeInputBlocker(HWND hwnd);
+
 // Toggles the input lock state (locked/unlocked).
 void ToggleInputLock(HWND hwnd);
 

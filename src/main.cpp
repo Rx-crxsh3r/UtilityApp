@@ -15,6 +15,8 @@ Failsafe failsafeHandler;
 LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     switch (uMsg) {
         case WM_CREATE:
+            // Initialize input blocker with window handle for performance
+            InitializeInputBlocker(hwnd);
             // Add the icon to the system tray on window creation
             AddTrayIcon(hwnd);
             // Show startup notification
@@ -84,6 +86,44 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
             }
             break;
             
+        case WM_USER + 100:
+            // Custom message: Deferred unlock operation from hook
+            // This allows us to move expensive operations out of the hook procedure
+            if (IsInputLocked()) {
+                ToggleInputLock(hwnd); // This will unlock and show notification
+                
+                // CRITICAL: Clear stuck modifier keys by sending key release events
+                // This fixes the issue where Ctrl/Shift remain "pressed" after unlock
+                INPUT inputs[6] = {};
+                int inputCount = 0;
+                
+                // Check if modifier keys are stuck and release them
+                if (GetAsyncKeyState(VK_CONTROL) & 0x8000) {
+                    inputs[inputCount].type = INPUT_KEYBOARD;
+                    inputs[inputCount].ki.wVk = VK_CONTROL;
+                    inputs[inputCount].ki.dwFlags = KEYEVENTF_KEYUP;
+                    inputCount++;
+                }
+                if (GetAsyncKeyState(VK_SHIFT) & 0x8000) {
+                    inputs[inputCount].type = INPUT_KEYBOARD;
+                    inputs[inputCount].ki.wVk = VK_SHIFT;
+                    inputs[inputCount].ki.dwFlags = KEYEVENTF_KEYUP;
+                    inputCount++;
+                }
+                if (GetAsyncKeyState(VK_MENU) & 0x8000) {
+                    inputs[inputCount].type = INPUT_KEYBOARD;
+                    inputs[inputCount].ki.wVk = VK_MENU;
+                    inputs[inputCount].ki.dwFlags = KEYEVENTF_KEYUP;
+                    inputCount++;
+                }
+                
+                // Send the key release events if any modifiers were stuck
+                if (inputCount > 0) {
+                    SendInput(inputCount, inputs, sizeof(INPUT));
+                }
+            }
+            break;
+            
         case WM_CLOSE:
             DestroyWindow(hwnd);
             break;
@@ -109,7 +149,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     WNDCLASS wc = {};
     wc.lpfnWndProc = WndProc;
     wc.hInstance = hInstance;
-    wc.lpszClassName = CLASS_NAME;
+    wc.lpszClassName = CLASS_NAME; // Using your ANSI class name
     wc.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_APPICON));
     
     if (!RegisterClass(&wc)) {
@@ -117,13 +157,19 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         return 0;
     }
 
-    // Create a hidden window to handle messages
+    // ✅ CORRECTED CODE: Create a message-only window.
+    // This is the key change. A message-only window is invisible by design
+    // and will not appear in the taskbar or Alt+Tab switcher.
     HWND hwnd = CreateWindowEx(
-        0, CLASS_NAME, "UtilityApp", 
-        0, // No window style - completely hidden
-        CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, // No size
-        HWND_MESSAGE, // This creates a message-only window that doesn't appear anywhere
-        NULL, hInstance, NULL
+        0,                   // No extended styles needed
+        CLASS_NAME,
+        "UtilityApp",        // Window title (not visible)
+        0,                   // No window styles needed
+        0, 0, 0, 0,          // Position and size are irrelevant
+        HWND_MESSAGE,        // <--- THIS IS THE CRITICAL PART
+        NULL,
+        hInstance,
+        NULL
     );
 
     if (hwnd == NULL) {
@@ -131,6 +177,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         return 0;
     }
     
+    // The ShowWindow(hwnd, SW_HIDE) call is no longer necessary,
+    // as a message-only window is never shown.
+
     // Main message loop
     MSG msg = {};
     while (GetMessage(&msg, NULL, 0, 0) > 0) {
