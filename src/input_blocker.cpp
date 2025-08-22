@@ -1,8 +1,12 @@
 // src/input_blocker.cpp
 
+// src/input_blocker.cpp
+
 #include "input_blocker.h"
-#include "failsafe.h"
 #include "notifications.h"
+#include "failsafe.h"
+#include "settings.h"
+#include "overlay.h"
 #include <string>
 #include <vector>
 
@@ -37,8 +41,13 @@ LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
         }
     }
     
-    // If locked, block input (minimal processing)
+    // If locked, check individual keyboard/mouse settings before blocking
     if (g_isLocked) {
+        // Only block keyboard input if keyboard lock is enabled
+        if (!g_appSettings.keyboardLockEnabled) {
+            return CallNextHookEx(g_keyboardHook, nCode, wParam, lParam);
+        }
+        
         // CRITICAL: Allow modifier key releases and certain system keys to pass through
         // This prevents the "sticky keys" issue where Ctrl/Shift remain pressed
         if (wParam == WM_KEYUP || wParam == WM_SYSKEYUP) {
@@ -92,8 +101,13 @@ LRESULT CALLBACK LowLevelMouseProc(int nCode, WPARAM wParam, LPARAM lParam) {
         return CallNextHookEx(g_mouseHook, nCode, wParam, lParam);
     }
     
-    // If locked, block all mouse input (minimal processing)
+    // If locked, check mouse lock settings before blocking
     if (g_isLocked) {
+        // Only block mouse input if mouse lock is enabled
+        if (!g_appSettings.mouseLockEnabled) {
+            return CallNextHookEx(g_mouseHook, nCode, wParam, lParam);
+        }
+        
         return 1; // Block input
     }
     
@@ -110,10 +124,12 @@ void ToggleInputLock(HWND hwnd) {
     g_isLocked = !g_isLocked;
     g_passwordBuffer.clear(); // Clear buffer on state change
     
-    // Show notification
+    // Show/hide overlay based on lock state and settings
     if (g_isLocked) {
+        g_screenOverlay.ShowOverlay((OverlayStyle)g_appSettings.overlayStyle);
         ShowNotification(hwnd, NOTIFY_INPUT_LOCKED);
     } else {
+        g_screenOverlay.HideOverlay();
         ShowNotification(hwnd, NOTIFY_INPUT_UNLOCKED);
     }
 }
@@ -123,10 +139,12 @@ bool IsInputLocked() {
 }
 
 void InstallHook() {
-    if (g_keyboardHook == NULL) {
+    // Only install keyboard hook if keyboard lock is enabled
+    if (g_appSettings.keyboardLockEnabled && g_keyboardHook == NULL) {
         g_keyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, LowLevelKeyboardProc, GetModuleHandle(NULL), 0);
     }
-    if (g_mouseHook == NULL) {
+    // Only install mouse hook if mouse lock is enabled
+    if (g_appSettings.mouseLockEnabled && g_mouseHook == NULL) {
         g_mouseHook = SetWindowsHookEx(WH_MOUSE_LL, LowLevelMouseProc, GetModuleHandle(NULL), 0);
     }
 }
@@ -140,4 +158,13 @@ void UninstallHook() {
         UnhookWindowsHookEx(g_mouseHook);
         g_mouseHook = NULL;
     }
+}
+
+// Refresh hooks when settings change
+void RefreshHooks() {
+    // Uninstall all hooks first
+    UninstallHook();
+    
+    // Reinstall only the hooks that are enabled in settings
+    InstallHook();
 }

@@ -17,3 +17,6 @@ void InstallHook();
 
 // Uninstalls the low-level keyboard hook.
 void UninstallHook();
+
+// Refresh hooks when settings change (reinstalls based on current settings)
+void RefreshHooks();

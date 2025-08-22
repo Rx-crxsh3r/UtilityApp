@@ -6,32 +6,49 @@
 #include "input_blocker.h"
 #include "failsafe.h"
 #include "notifications.h"
+#include "settings.h"
+#include "overlay.h"
+#include "custom_notifications.h"
+#include "audio_manager.h"
+#include "features/productivity/productivity_manager.h"
+#include "features/privacy/privacy_manager.h"
 
 // Global variables
 extern const char CLASS_NAME[] = "UtilityAppClass";
 Failsafe failsafeHandler;
+HWND g_mainWindow = NULL; // Global main window handle for settings updates
+
+// Global manager instances
+ProductivityManager g_productivityManager;
+PrivacyManager g_privacyManager;
+
+// Function declarations
+LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+void RegisterHotkeyFromSettings(HWND hwnd);
 
 // Window Procedure
 LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     switch (uMsg) {
         case WM_CREATE:
+            // Initialize settings system
+            InitializeSettings();
+            // Initialize custom notification system
+            InitializeCustomNotifications();
+            // Initialize audio system
+            InitializeAudio();
             // Initialize input blocker with window handle for performance
             InitializeInputBlocker(hwnd);
+            // Initialize productivity manager with main window
+            g_productivityManager.SetMainWindow(hwnd);
             // Add the icon to the system tray on window creation
             AddTrayIcon(hwnd);
             // Show startup notification
             ShowNotification(hwnd, NOTIFY_APP_START);
-            // Register the global hotkeys
-            // Lock: Ctrl + Shift + Esc + I (simplified to Ctrl + Shift + I for now)
-            if (!RegisterHotKey(hwnd, HOTKEY_ID_LOCK, MOD_CONTROL | MOD_SHIFT, 'I')) {
-                 MessageBoxA(hwnd, "Failed to register lock hotkey!", "Error", MB_OK | MB_ICONERROR);
-                 ShowNotification(hwnd, NOTIFY_HOTKEY_ERROR, "Failed to register lock hotkey");
-            }
-            // Unlock: Ctrl + Esc + O (simplified to Ctrl + O for now)
-            if (!RegisterHotKey(hwnd, HOTKEY_ID_UNLOCK, MOD_CONTROL, 'O')) {
-                 MessageBoxA(hwnd, "Failed to register unlock hotkey!", "Error", MB_OK | MB_ICONERROR);
-                 ShowNotification(hwnd, NOTIFY_HOTKEY_ERROR, "Failed to register unlock hotkey");
-            }
+            
+            // Load settings and register hotkeys based on settings
+            InitializeSettings();
+            RegisterHotkeyFromSettings(hwnd);
+            
             // Install the keyboard hook to listen for unlock sequence
             InstallHook();
             break;
@@ -44,6 +61,13 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
                 // Force unlock
                 if (IsInputLocked()) {
                     ToggleInputLock(hwnd);
+                }
+            } else if (wParam >= 5000 && wParam < 5100) {
+                // Quick launch hotkeys (5000-5099 range)
+                auto apps = g_productivityManager.GetQuickLaunchApps();
+                int appIndex = wParam - 5000;
+                if (appIndex < apps.size() && apps[appIndex].enabled) {
+                    g_productivityManager.ExecuteQuickLaunchApp(apps[appIndex].hotkey);
                 }
             }
             break;
@@ -68,10 +92,11 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
                     ToggleInputLock(hwnd);
                     break;
                 case IDM_SETTINGS:
-                    MessageBoxA(hwnd, "Settings dialog coming soon!", "Settings", MB_OK | MB_ICONINFORMATION);
+                    ShowSettingsDialog(hwnd);
                     break;
                 case IDM_CHANGE_HOTKEYS:
-                    MessageBoxA(hwnd, "Hotkey configuration coming soon!", "Change Hotkeys", MB_OK | MB_ICONINFORMATION);
+                    // Open settings dialog directly to Lock & Input tab
+                    ShowSettingsDialog(hwnd);
                     break;
                 case IDM_CHANGE_PASSWORD:
                     MessageBoxA(hwnd, "Password configuration coming soon!", "Change Password", MB_OK | MB_ICONINFORMATION);
@@ -134,7 +159,14 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
             UnregisterHotKey(hwnd, HOTKEY_ID_LOCK);
             UnregisterHotKey(hwnd, HOTKEY_ID_UNLOCK);
             UninstallHook();
+            CleanupCustomNotifications();
+            CleanupAudio();
             PostQuitMessage(0);
+            break;
+            
+        case WM_DEVICECHANGE:
+            // Handle USB device changes for productivity features
+            g_productivityManager.HandleDeviceChange(wParam, lParam);
             break;
             
         default:
@@ -157,16 +189,15 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         return 0;
     }
 
-    // ✅ CORRECTED CODE: Create a message-only window.
-    // This is the key change. A message-only window is invisible by design
-    // and will not appear in the taskbar or Alt+Tab switcher.
+    // Create a hidden window that can be controlled by privacy settings
+    // This allows the Alt+Tab hiding feature to work properly
     HWND hwnd = CreateWindowEx(
-        0,                   // No extended styles needed
+        WS_EX_TOOLWINDOW,    // Tool window - hidden from taskbar by default
         CLASS_NAME,
         "UtilityApp",        // Window title (not visible)
-        0,                   // No window styles needed
-        0, 0, 0, 0,          // Position and size are irrelevant
-        HWND_MESSAGE,        // <--- THIS IS THE CRITICAL PART
+        WS_OVERLAPPED,       // Normal window style but will be hidden
+        CW_USEDEFAULT, CW_USEDEFAULT, 1, 1,  // Minimal size
+        NULL,                // No parent window
         NULL,
         hInstance,
         NULL
@@ -176,6 +207,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         MessageBoxA(NULL, "Window Creation Failed!", "Error", MB_OK | MB_ICONERROR);
         return 0;
     }
+    
+    // Store global reference for settings updates
+    g_mainWindow = hwnd;
     
     // The ShowWindow(hwnd, SW_HIDE) call is no longer necessary,
     // as a message-only window is never shown.
@@ -188,4 +222,31 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     }
 
     return (int)msg.wParam;
+}
+
+// Function to register hotkeys based on current settings
+void RegisterHotkeyFromSettings(HWND hwnd) {
+    // Unregister existing hotkeys first
+    UnregisterHotKey(hwnd, HOTKEY_ID_LOCK);
+    UnregisterHotKey(hwnd, HOTKEY_ID_UNLOCK);
+    
+    // Register lock hotkey from settings
+    if (!RegisterHotKey(hwnd, HOTKEY_ID_LOCK, g_appSettings.hotkeyModifiers, g_appSettings.hotkeyVirtualKey)) {
+        MessageBoxA(hwnd, "Failed to register lock hotkey!", "Error", MB_OK | MB_ICONERROR);
+        ShowNotification(hwnd, NOTIFY_HOTKEY_ERROR, "Failed to register lock hotkey");
+    }
+    
+    // Register unlock hotkey if enabled
+    if (g_appSettings.unlockHotkeyEnabled) {
+        if (!RegisterHotKey(hwnd, HOTKEY_ID_UNLOCK, g_appSettings.unlockHotkeyModifiers, g_appSettings.unlockHotkeyVirtualKey)) {
+            MessageBoxA(hwnd, "Failed to register unlock hotkey!", "Error", MB_OK | MB_ICONERROR);
+            ShowNotification(hwnd, NOTIFY_HOTKEY_ERROR, "Failed to register unlock hotkey");
+        }
+    } else {
+        // Fallback to default unlock hotkey (Ctrl+O) if custom unlock is disabled
+        if (!RegisterHotKey(hwnd, HOTKEY_ID_UNLOCK, MOD_CONTROL, 'O')) {
+            MessageBoxA(hwnd, "Failed to register default unlock hotkey!", "Error", MB_OK | MB_ICONERROR);
+            ShowNotification(hwnd, NOTIFY_HOTKEY_ERROR, "Failed to register unlock hotkey");
+        }
+    }
 }

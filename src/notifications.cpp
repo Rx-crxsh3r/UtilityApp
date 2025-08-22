@@ -1,6 +1,7 @@
 // src/notifications.cpp
 
 #include "notifications.h"
+#include "custom_notifications.h"
 #include "resource.h"
 #include <shellapi.h>
 
@@ -41,7 +42,13 @@ void ShowNotification(HWND hwnd, NotificationType type, const char* customMessag
         }
     }
     
-    ShowBalloonTip(hwnd, title, message, iconType);
+    // Use custom notification system if available
+    if (g_customNotifications) {
+        g_customNotifications->ShowNotification(title, message);
+    } else {
+        // Fallback to system tray balloon
+        ShowBalloonTip(hwnd, title, message, iconType);
+    }
 }
 
 void ShowBalloonTip(HWND hwnd, const char* title, const char* message, DWORD iconType) {

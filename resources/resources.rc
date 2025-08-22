@@ -1,6 +1,7 @@
 // resources/resources.rc
 
 #include "../src/resource.h"
+#include "settings_dialogs.rc"
 
 // Icon
 IDI_APPICON ICON "icon.ico"
