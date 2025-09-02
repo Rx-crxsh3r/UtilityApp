@@ -55,8 +55,9 @@ void CustomNotificationSystem::Initialize() {
     hBackgroundBrush = CreateSolidBrush(BG_COLOR);
     hBorderPen = CreatePen(PS_SOLID, 1, RGB(40, 40, 40));
     
-    // Set up update timer
-    SetTimer(hNotifyWindow, 1, 16, TimerProc); // ~60 FPS for smooth animations
+    // OPTIMIZATION: Reduce timer frequency to save CPU/RAM usage
+    // 30 FPS is sufficient for notification animations and reduces resource usage
+    SetTimer(hNotifyWindow, 1, 33, TimerProc); // ~30 FPS for balanced performance
 }
 
 void CustomNotificationSystem::CreateNotificationWindow() {

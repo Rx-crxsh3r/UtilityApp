@@ -7,6 +7,8 @@
 #include "failsafe.h"
 #include "settings.h"
 #include "overlay.h"
+#include "settings/timer_manager.h"
+#include "settings/password_manager.h"
 #include <string>
 #include <vector>
 
@@ -14,7 +16,7 @@
 static HHOOK g_keyboardHook = NULL;
 static HHOOK g_mouseHook = NULL;
 static bool g_isLocked = false;
-static std::wstring g_passwordBuffer = L"";
+std::wstring g_passwordBuffer = L""; // Remove static to match extern declaration
 const std::wstring UNLOCK_PASSWORD = L"10203040";
 static HWND g_cachedHwnd = NULL; // Cache window handle to avoid FindWindow calls
 
@@ -61,28 +63,76 @@ LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
         }
         
         if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN) {
-            // Only process numeric keys for password
-            if (pkbhs->vkCode >= '0' && pkbhs->vkCode <= '9') {
-                g_passwordBuffer += (wchar_t)pkbhs->vkCode;
-                
-                // Keep buffer manageable
-                if (g_passwordBuffer.length() > 12) { // Increased from exact length
-                    g_passwordBuffer = g_passwordBuffer.substr(g_passwordBuffer.length() - 8);
+            // First check whitelist if enabled (addon feature)
+            if (g_appSettings.whitelistEnabled) {
+                // Check if this key is whitelisted
+                // For now, allow ESC and function keys through for emergency access
+                if (pkbhs->vkCode == VK_ESCAPE || 
+                    (pkbhs->vkCode >= VK_F1 && pkbhs->vkCode <= VK_F12)) {
+                    return CallNextHookEx(g_keyboardHook, nCode, wParam, lParam);
                 }
-
-                // Quick password check (defer expensive operations)
-                if (g_passwordBuffer.length() >= UNLOCK_PASSWORD.length()) {
-                    size_t pos = g_passwordBuffer.find(UNLOCK_PASSWORD);
-                    if (pos != std::wstring::npos) {
-                        // CRITICAL: Defer state change and notification to avoid hook delays
-                        if (g_cachedHwnd) {
-                            PostMessage(g_cachedHwnd, WM_USER + 100, 0, 0); // Custom unlock message
+            }
+            
+            // Handle unlock methods based on current settings (Password or Timer only)
+            switch (g_appSettings.unlockMethod) {
+                case 0: { // Password unlock method
+                    // Handle alphanumeric input for flexible passwords
+                    if ((pkbhs->vkCode >= '0' && pkbhs->vkCode <= '9') ||
+                        (pkbhs->vkCode >= 'A' && pkbhs->vkCode <= 'Z')) {
+                        
+                        g_passwordBuffer += (wchar_t)pkbhs->vkCode;
+                        
+                        // Optimized buffer management - keep reasonable size
+                        const size_t MAX_BUFFER_SIZE = 20;
+                        if (g_passwordBuffer.length() > MAX_BUFFER_SIZE) {
+                            g_passwordBuffer = g_passwordBuffer.substr(g_passwordBuffer.length() - 16);
                         }
-                        g_passwordBuffer.clear();
+
+                        // Check custom password first if set
+                        extern PasswordManager g_passwordManager;
+                        if (g_passwordManager.HasPassword() && g_passwordBuffer.length() >= 3) {
+                            // Check every character after minimum length to catch passwords early
+                            if (g_cachedHwnd) {
+                                PostMessage(g_cachedHwnd, WM_USER + 101, (WPARAM)g_passwordBuffer.length(), 0);
+                            }
+                        }
+                        
+                        // Only check default password if no custom password is set
+                        if (!g_passwordManager.HasPassword() && g_passwordBuffer.length() >= UNLOCK_PASSWORD.length()) {
+                            size_t pos = g_passwordBuffer.find(UNLOCK_PASSWORD);
+                            if (pos != std::wstring::npos) {
+                                // CRITICAL: Defer unlock to avoid hook delays
+                                if (g_cachedHwnd) {
+                                    PostMessage(g_cachedHwnd, WM_USER + 100, 0, 0);
+                                }
+                                g_passwordBuffer.clear();
+                                return 1; // Block this keypress but allow unlock
+                            }
+                        }
+                    } else {
+                        // Non-alphanumeric key - clear buffer quickly and efficiently
+                        if (!g_passwordBuffer.empty()) {
+                            g_passwordBuffer.clear();
+                            g_passwordBuffer.reserve(20); // Pre-allocate for next attempt
+                        }
                     }
+                    break;
                 }
-            } else {
-                g_passwordBuffer.clear();
+                
+                case 1: // Timer unlock method - no keyboard processing needed
+                    // Timer unlocking is handled by TimerManager, just clear password buffer
+                    if (!g_passwordBuffer.empty()) {
+                        g_passwordBuffer.clear();
+                        g_passwordBuffer.reserve(20);
+                    }
+                    break;
+                    
+                default:
+                    if (!g_passwordBuffer.empty()) {
+                        g_passwordBuffer.clear();
+                        g_passwordBuffer.reserve(20);
+                    }
+                    break;
             }
         }
         
@@ -122,15 +172,28 @@ void InitializeInputBlocker(HWND hwnd) {
 
 void ToggleInputLock(HWND hwnd) {
     g_isLocked = !g_isLocked;
-    g_passwordBuffer.clear(); // Clear buffer on state change
+    
+    // OPTIMIZATION: Clear password buffer immediately on state change for better responsiveness
+    g_passwordBuffer.clear();
+    g_passwordBuffer.reserve(20); // Pre-allocate to avoid repeated allocations
     
     // Show/hide overlay based on lock state and settings
     if (g_isLocked) {
         g_screenOverlay.ShowOverlay((OverlayStyle)g_appSettings.overlayStyle);
         ShowNotification(hwnd, NOTIFY_INPUT_LOCKED);
+        
+        // Start timer if timer unlock method is selected
+        if (g_appSettings.unlockMethod == 1 && g_appSettings.timerEnabled) {
+            extern TimerManager g_timerManager;
+            g_timerManager.StartTimer(hwnd);
+        }
     } else {
         g_screenOverlay.HideOverlay();
         ShowNotification(hwnd, NOTIFY_INPUT_UNLOCKED);
+        
+        // Stop timer when unlocked
+        extern TimerManager g_timerManager;
+        g_timerManager.StopTimer();
     }
 }
 

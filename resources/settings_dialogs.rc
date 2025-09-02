@@ -66,13 +66,15 @@ BEGIN
     CONTROL         "Lock Keyboard", IDC_CHECK_KEYBOARD, "Button", BS_AUTOCHECKBOX | WS_CHILD | WS_VISIBLE | WS_TABSTOP, 20, 25, 80, 10
     CONTROL         "Lock Mouse", IDC_CHECK_MOUSE, "Button", BS_AUTOCHECKBOX | WS_CHILD | WS_VISIBLE | WS_TABSTOP, 20, 40, 80, 10
     
-    GROUPBOX        "Unlock Method", -1, 200, 10, 180, 100
+    GROUPBOX        "Unlock Method", -1, 200, 10, 180, 80
     CONTROL         "Password", IDC_RADIO_PASSWORD, "Button", BS_AUTORADIOBUTTON | WS_GROUP | WS_CHILD | WS_VISIBLE | WS_TABSTOP, 210, 25, 60, 10
     PUSHBUTTON      "Configure...", IDC_BTN_PASSWORD_CFG, 280, 23, 60, 14
     CONTROL         "Timer", IDC_RADIO_TIMER, "Button", BS_AUTORADIOBUTTON | WS_CHILD | WS_VISIBLE | WS_TABSTOP, 210, 45, 60, 10
     PUSHBUTTON      "Configure...", IDC_BTN_TIMER_CFG, 280, 43, 60, 14
-    CONTROL         "Whitelist Keys", IDC_RADIO_WHITELIST, "Button", BS_AUTORADIOBUTTON | WS_CHILD | WS_VISIBLE | WS_TABSTOP, 210, 65, 70, 10
-    PUSHBUTTON      "Configure...", IDC_BTN_WHITELIST_CFG, 280, 63, 60, 14
+    
+    GROUPBOX        "Additional Features", -1, 200, 100, 180, 50
+    CONTROL         "Enable Key Whitelist", IDC_CHECK_WHITELIST, "Button", BS_AUTOCHECKBOX | WS_CHILD | WS_VISIBLE | WS_TABSTOP, 210, 115, 80, 10
+    PUSHBUTTON      "Configure...", IDC_BTN_WHITELIST_CFG, 280, 113, 60, 14
     
     GROUPBOX        "Hotkeys", -1, 10, 80, 370, 80
     LTEXT           "Lock Hotkey:", -1, 20, 100, 50, 8
@@ -84,20 +86,46 @@ BEGIN
     LTEXT           "Click in the hotkey field above to change the lock hotkey combination.", -1, 20, 140, 350, 16
 END
 
-// Productivity Tab Dialog (Coming Soon)
+// Productivity Tab Dialog
 IDD_TAB_PRODUCTIVITY DIALOGEX 0, 0, 400, 250
 STYLE DS_CONTROL | WS_CHILD
 FONT 8, "MS Shell Dlg"
 BEGIN
-    LTEXT           "", IDC_LABEL_COMING_SOON, 20, 20, 360, 200
+    GROUPBOX        "Productivity Features", -1, 10, 10, 370, 160
+    CONTROL         "Enable USB Device Alerts", IDC_CHECK_USB_ALERT, "Button", BS_AUTOCHECKBOX | WS_CHILD | WS_VISIBLE | WS_TABSTOP, 20, 25, 140, 10
+    CONTROL         "Enable Quick Launch Hotkeys", IDC_CHECK_QUICK_LAUNCH, "Button", BS_AUTOCHECKBOX | WS_CHILD | WS_VISIBLE | WS_TABSTOP, 20, 40, 140, 10
+    CONTROL         "Enable Work/Break Timer", IDC_CHECK_TIMER, "Button", BS_AUTOCHECKBOX | WS_CHILD | WS_VISIBLE | WS_TABSTOP, 20, 55, 140, 10
+    PUSHBUTTON      "Configure Apps...", IDC_BTN_QUICK_LAUNCH_CONFIG, 180, 38, 80, 14
+    PUSHBUTTON      "Timer Settings...", IDC_BTN_TIMER_CONFIG, 270, 38, 80, 14
+    PUSHBUTTON      "Start Work Session", IDC_BTN_START_WORK_SESSION, 20, 75, 100, 20
+    
+    LTEXT           "USB Alert: Monitor USB device connections", -1, 40, 110, 300, 8
+    LTEXT           "Quick Launch: Ctrl+F1 (Notepad), Ctrl+F2 (Calculator), Ctrl+Alt+F3 (Explorer)", -1, 40, 125, 300, 8
+    LTEXT           "Timer: 25min work, 5min break cycles with notifications", -1, 40, 140, 300, 8
 END
 
-// Privacy & Security Tab Dialog (Coming Soon)
+// Privacy & Security Tab Dialog
 IDD_TAB_PRIVACY DIALOGEX 0, 0, 400, 250
 STYLE DS_CONTROL | WS_CHILD
 FONT 8, "MS Shell Dlg"
 BEGIN
-    LTEXT           "", IDC_LABEL_COMING_SOON, 20, 20, 360, 200
+    GROUPBOX        "Privacy & Security Features", -1, 10, 10, 370, 230
+    CONTROL         "Start with Windows", IDC_CHECK_START_WINDOWS, "Button", BS_AUTOCHECKBOX | WS_CHILD | WS_VISIBLE | WS_TABSTOP, 20, 30, 120, 10
+    LTEXT           "Automatically starts the app when Windows boots", -1, 40, 45, 300, 8
+    
+    GROUPBOX        "Boss Key (Quick Hide)", -1, 20, 70, 340, 60
+    CONTROL         "Enable Boss Key", IDC_CHECK_BOSS_KEY, "Button", BS_AUTOCHECKBOX | WS_CHILD | WS_VISIBLE | WS_TABSTOP, 30, 85, 100, 10
+    LTEXT           "Boss Key Hotkey:", -1, 30, 105, 80, 8
+    EDITTEXT        IDC_EDIT_HOTKEY_BOSS, 110, 103, 100, 14, ES_READONLY
+    PUSHBUTTON      "Test", IDC_BTN_BOSS_KEY_TEST, 220, 103, 40, 14
+    LTEXT           "Boss Key instantly hides ALL desktop windows. Press again to restore.", -1, 30, 115, 320, 8
+    
+    GROUPBOX        "Emergency Unlock (Lock Input Only)", -1, 20, 140, 340, 60
+    CONTROL         "Enable Emergency Unlock Hotkey", IDC_CHECK_UNLOCK_HOTKEY, "Button", BS_AUTOCHECKBOX | WS_CHILD | WS_VISIBLE | WS_TABSTOP, 30, 155, 150, 10
+    LTEXT           "Emergency Hotkey:", -1, 30, 175, 80, 8
+    EDITTEXT        IDC_EDIT_UNLOCK_HOTKEY, 110, 173, 100, 14, ES_READONLY
+    PUSHBUTTON      "Test", IDC_BTN_TEST_UNLOCK, 220, 173, 40, 14
+    LTEXT           "Emergency unlock bypasses current unlock method (Password/Timer only)", -1, 30, 185, 320, 8
 END
 
 // Appearance Tab Dialog

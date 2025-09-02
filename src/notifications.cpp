@@ -42,13 +42,9 @@ void ShowNotification(HWND hwnd, NotificationType type, const char* customMessag
         }
     }
     
-    // Use custom notification system if available
-    if (g_customNotifications) {
-        g_customNotifications->ShowNotification(title, message);
-    } else {
-        // Fallback to system tray balloon
-        ShowBalloonTip(hwnd, title, message, iconType);
-    }
+    // OPTIMIZATION: Defer notification display to avoid interfering with input processing
+    // This prevents notifications from causing input lag during password entry
+    PostMessage(hwnd, WM_USER + 102, (WPARAM)type, (LPARAM)_strdup(message));
 }
 
 void ShowBalloonTip(HWND hwnd, const char* title, const char* message, DWORD iconType) {

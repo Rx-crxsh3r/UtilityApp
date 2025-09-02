@@ -62,7 +62,7 @@ struct AppSettings {
         lockHotkey = "Ctrl+Shift+L";
         hotkeyModifiers = MOD_CONTROL | MOD_SHIFT;
         hotkeyVirtualKey = 'L';
-        unlockHotkeyEnabled = false;
+        unlockHotkeyEnabled = true;
         unlockHotkey = "Ctrl+Shift+U";
         unlockHotkeyModifiers = MOD_CONTROL | MOD_SHIFT;
         unlockHotkeyVirtualKey = 'U';
@@ -77,10 +77,10 @@ struct AppSettings {
         hideFromTaskbar = true;
         startWithWindows = false;
         usbAlertEnabled = false; // Off by default
-        quickLaunchEnabled = false; // Off by default
+        quickLaunchEnabled = true; // Enable by default for better user experience
         workBreakTimerEnabled = false; // Off by default
-        bossKeyEnabled = false; // Off by default
-        bossKeyHotkey = "Ctrl+Alt+H";
+        bossKeyEnabled = true; // Enable by default for better user experience
+        bossKeyHotkey = "Ctrl+Shift+B";
     }
     
     // Comparison operators

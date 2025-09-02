@@ -131,6 +131,7 @@ INT_PTR CALLBACK SettingsDialog::DialogProc(HWND hDlg, UINT message, WPARAM wPar
                             case IDNO:
                                 dialog->tempSettings = dialog->originalSettings; // Revert changes
                                 dialog->hasUnsavedChanges = false;
+                                dialog->RefreshCurrentTabControls(); // Refresh UI to show reverted values
                                 break;
                             case IDCANCEL:
                                 // Revert tab selection
@@ -244,6 +245,10 @@ void SettingsDialog::CreateTabDialogs() {
 }
 
 void SettingsDialog::SwitchTab(int tabIndex) {
+    // End any active hotkey capture when switching tabs
+    extern HotkeyManager g_hotkeyManager;
+    g_hotkeyManager.EndCapture(false); // Don't save the hotkey
+    
     HideCurrentTab();
     currentTabIndex = tabIndex;
     
@@ -277,6 +282,33 @@ void SettingsDialog::HideCurrentTab() {
     }
 }
 
+void SettingsDialog::RefreshCurrentTabControls() {
+    // Send WM_INITDIALOG to the current tab to refresh its controls
+    // This effectively re-initializes the tab with current tempSettings values
+    switch (currentTabIndex) {
+        case TAB_LOCK_INPUT:
+            if (hTabLockInput) {
+                LockInputTabProc(hTabLockInput, WM_INITDIALOG, 0, (LPARAM)this);
+            }
+            break;
+        case TAB_PRODUCTIVITY:
+            if (hTabProductivity) {
+                ProductivityTabProc(hTabProductivity, WM_INITDIALOG, 0, (LPARAM)this);
+            }
+            break;
+        case TAB_PRIVACY:
+            if (hTabPrivacy) {
+                PrivacyTabProc(hTabPrivacy, WM_INITDIALOG, 0, (LPARAM)this);
+            }
+            break;
+        case TAB_APPEARANCE:
+            if (hTabAppearance) {
+                AppearanceTabProc(hTabAppearance, WM_INITDIALOG, 0, (LPARAM)this);
+            }
+            break;
+    }
+}
+
 INT_PTR CALLBACK SettingsDialog::LockInputTabProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam) {
     SettingsDialog* dialog = nullptr;
     
@@ -295,17 +327,16 @@ INT_PTR CALLBACK SettingsDialog::LockInputTabProc(HWND hDlg, UINT message, WPARA
             CheckDlgButton(hDlg, IDC_CHECK_KEYBOARD, dialog->tempSettings.keyboardLockEnabled ? BST_CHECKED : BST_UNCHECKED);
             CheckDlgButton(hDlg, IDC_CHECK_MOUSE, dialog->tempSettings.mouseLockEnabled ? BST_CHECKED : BST_UNCHECKED);
             
-            // Set unlock method radio buttons
-            CheckRadioButton(hDlg, IDC_RADIO_PASSWORD, IDC_RADIO_WHITELIST, 
+            // Set unlock method radio buttons (only Password and Timer now)
+            CheckRadioButton(hDlg, IDC_RADIO_PASSWORD, IDC_RADIO_TIMER, 
                            IDC_RADIO_PASSWORD + dialog->tempSettings.unlockMethod);
+            
+            // Set whitelist checkbox separately (it's now an addon feature)
+            CheckDlgButton(hDlg, IDC_CHECK_WHITELIST, dialog->tempSettings.whitelistEnabled ? BST_CHECKED : BST_UNCHECKED);
+            EnableWindow(GetDlgItem(hDlg, IDC_BTN_WHITELIST_CFG), dialog->tempSettings.whitelistEnabled);
             
             // Set hotkey text
             SetDlgItemTextA(hDlg, IDC_EDIT_HOTKEY_LOCK, dialog->tempSettings.lockHotkey.c_str());
-            
-            // Initialize unlock hotkey controls
-            CheckDlgButton(hDlg, IDC_CHECK_UNLOCK_HOTKEY, dialog->tempSettings.unlockHotkeyEnabled ? BST_CHECKED : BST_UNCHECKED);
-            SetDlgItemTextA(hDlg, IDC_EDIT_UNLOCK_HOTKEY, dialog->tempSettings.unlockHotkey.c_str());
-            EnableWindow(GetDlgItem(hDlg, IDC_EDIT_UNLOCK_HOTKEY), dialog->tempSettings.unlockHotkeyEnabled);
             
             // Create warning controls dynamically
             dialog->CreateWarningControls(hDlg);
@@ -361,8 +392,7 @@ INT_PTR CALLBACK SettingsDialog::LockInputTabProc(HWND hDlg, UINT message, WPARA
                 }
                 
                 case IDC_RADIO_PASSWORD:
-                case IDC_RADIO_TIMER:
-                case IDC_RADIO_WHITELIST: {
+                case IDC_RADIO_TIMER: {
                     int oldMethod = dialog->tempSettings.unlockMethod;
                     dialog->tempSettings.unlockMethod = LOWORD(wParam) - IDC_RADIO_PASSWORD;
                     
@@ -372,6 +402,19 @@ INT_PTR CALLBACK SettingsDialog::LockInputTabProc(HWND hDlg, UINT message, WPARA
                     
                     // Update warnings when unlock method changes
                     dialog->UpdateWarnings();
+                    break;
+                }
+                
+                case IDC_CHECK_WHITELIST: {
+                    bool oldValue = dialog->tempSettings.whitelistEnabled;
+                    dialog->tempSettings.whitelistEnabled = (IsDlgButtonChecked(hDlg, IDC_CHECK_WHITELIST) == BST_CHECKED);
+                    
+                    // Enable/disable whitelist configuration button
+                    EnableWindow(GetDlgItem(hDlg, IDC_BTN_WHITELIST_CFG), dialog->tempSettings.whitelistEnabled);
+                    
+                    if (oldValue != dialog->tempSettings.whitelistEnabled) {
+                        dialog->hasUnsavedChanges = true;
+                    }
                     break;
                 }
                 
@@ -393,23 +436,6 @@ INT_PTR CALLBACK SettingsDialog::LockInputTabProc(HWND hDlg, UINT message, WPARA
                         HWND hEdit = GetDlgItem(hDlg, IDC_EDIT_HOTKEY_LOCK);
                         HWND hHint = GetDlgItem(hDlg, IDC_LABEL_HOTKEY_HINT);
                         g_hotkeyManager.StartCapture(hDlg, hEdit, hHint, dialog->tempSettings.lockHotkey);
-                    }
-                    break;
-                    
-                case IDC_CHECK_UNLOCK_HOTKEY: {
-                    bool unlockEnabled = IsDlgButtonChecked(hDlg, IDC_CHECK_UNLOCK_HOTKEY) == BST_CHECKED;
-                    EnableWindow(GetDlgItem(hDlg, IDC_EDIT_UNLOCK_HOTKEY), unlockEnabled);
-                    dialog->tempSettings.unlockHotkeyEnabled = unlockEnabled;
-                    dialog->hasUnsavedChanges = true;
-                    break;
-                }
-                
-                case IDC_EDIT_UNLOCK_HOTKEY:
-                    if (HIWORD(wParam) == EN_SETFOCUS && dialog->tempSettings.unlockHotkeyEnabled) {
-                        // User clicked unlock hotkey textbox - start capture
-                        HWND hEdit = GetDlgItem(hDlg, IDC_EDIT_UNLOCK_HOTKEY);
-                        HWND hHint = GetDlgItem(hDlg, IDC_LABEL_HOTKEY_HINT);
-                        g_hotkeyManager.StartCapture(hDlg, hEdit, hHint, dialog->tempSettings.unlockHotkey);
                     }
                     break;
             }
@@ -434,101 +460,22 @@ INT_PTR CALLBACK SettingsDialog::ProductivityTabProc(HWND hDlg, UINT message, WP
     
     switch (message) {
         case WM_INITDIALOG: {
-            // Create standard font for consistency
-            HFONT hFont = CreateFont(
-                -11,                // Height
-                0,                  // Width
-                0,                  // Escapement
-                0,                  // Orientation
-                FW_NORMAL,          // Weight
-                FALSE,              // Italic
-                FALSE,              // Underline
-                FALSE,              // StrikeOut
-                DEFAULT_CHARSET,    // CharSet
-                OUT_DEFAULT_PRECIS, // OutPrecision
-                CLIP_DEFAULT_PRECIS,// ClipPrecision
-                DEFAULT_QUALITY,    // Quality
-                DEFAULT_PITCH | FF_DONTCARE, // PitchAndFamily
-                "MS Shell Dlg"      // FaceName
-            );
-            
-            // Store font handle using SetProp for safe storage
-            SetProp(hDlg, TEXT("DialogFont"), hFont);
-            
-            // Create productivity feature controls
-            HWND hGroup = CreateWindow("BUTTON", "Productivity Features", 
-                                     WS_VISIBLE | WS_CHILD | BS_GROUPBOX,
-                                     10, 10, 360, 250, hDlg, NULL, GetModuleHandle(NULL), NULL);
-            
-            // USB Alert checkbox
-            HWND hUSBAlert = CreateWindow("BUTTON", "Enable USB Device Alerts", 
-                                        WS_VISIBLE | WS_CHILD | BS_AUTOCHECKBOX,
-                                        20, 35, 200, 20, hDlg, (HMENU)IDC_CHECK_USB_ALERT, 
-                                        GetModuleHandle(NULL), NULL);
+            // Initialize productivity controls from current settings
             CheckDlgButton(hDlg, IDC_CHECK_USB_ALERT, dialog->tempSettings.usbAlertEnabled ? BST_CHECKED : BST_UNCHECKED);
-            
-            // Quick Launch checkbox
-            HWND hQuickLaunch = CreateWindow("BUTTON", "Enable Quick Launch Hotkeys", 
-                                           WS_VISIBLE | WS_CHILD | BS_AUTOCHECKBOX,
-                                           20, 60, 200, 20, hDlg, (HMENU)IDC_CHECK_QUICK_LAUNCH, 
-                                           GetModuleHandle(NULL), NULL);
             CheckDlgButton(hDlg, IDC_CHECK_QUICK_LAUNCH, dialog->tempSettings.quickLaunchEnabled ? BST_CHECKED : BST_UNCHECKED);
-            
-            // Work/Break Timer checkbox
-            HWND hTimer = CreateWindow("BUTTON", "Enable Work/Break Timer (Pomodoro)", 
-                                     WS_VISIBLE | WS_CHILD | BS_AUTOCHECKBOX,
-                                     20, 85, 250, 20, hDlg, (HMENU)IDC_CHECK_TIMER, 
-                                     GetModuleHandle(NULL), NULL);
             CheckDlgButton(hDlg, IDC_CHECK_TIMER, dialog->tempSettings.workBreakTimerEnabled ? BST_CHECKED : BST_UNCHECKED);
             
-            // Timer configuration button
-            HWND hTimerConfig = CreateWindow("BUTTON", "Configure Timer...", 
-                                           WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON,
-                                           270, 85, 100, 20, hDlg, (HMENU)IDC_BTN_TIMER_CONFIG, 
-                                           GetModuleHandle(NULL), NULL);
+            // Initialize emergency unlock controls
+            CheckDlgButton(hDlg, IDC_CHECK_UNLOCK_HOTKEY, dialog->tempSettings.unlockHotkeyEnabled ? BST_CHECKED : BST_UNCHECKED);
+            SetDlgItemTextA(hDlg, IDC_EDIT_UNLOCK_HOTKEY, dialog->tempSettings.unlockHotkey.c_str());
+            EnableWindow(GetDlgItem(hDlg, IDC_EDIT_UNLOCK_HOTKEY), dialog->tempSettings.unlockHotkeyEnabled);
+            EnableWindow(GetDlgItem(hDlg, IDC_BTN_TEST_UNLOCK), dialog->tempSettings.unlockHotkeyEnabled);
             
-            // Start Work Session button
-            HWND hStartWork = CreateWindow("BUTTON", "Start Work Session", 
-                                         WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON,
-                                         20, 110, 120, 25, hDlg, (HMENU)IDC_BTN_START_WORK_SESSION, 
-                                         GetModuleHandle(NULL), NULL);
-            
-            // Quick Launch configuration button
-            HWND hQuickLaunchConfig = CreateWindow("BUTTON", "Configure Apps...", 
-                                                 WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON,
-                                                 270, 60, 100, 20, hDlg, (HMENU)IDC_BTN_QUICK_LAUNCH_CONFIG, 
-                                                 GetModuleHandle(NULL), NULL);
-            
-            // Status labels
-            CreateWindow("STATIC", "USB Alert: Monitor USB device connections", 
-                        WS_VISIBLE | WS_CHILD | SS_LEFT,
-                        40, 150, 320, 15, hDlg, NULL, GetModuleHandle(NULL), NULL);
-            
-            CreateWindow("STATIC", "Quick Launch: Use hotkeys to instantly launch apps", 
-                        WS_VISIBLE | WS_CHILD | SS_LEFT,
-                        40, 165, 320, 15, hDlg, NULL, GetModuleHandle(NULL), NULL);
-            
-            CreateWindow("STATIC", "Timer: 25min work, 5min break cycles with notifications", 
-                        WS_VISIBLE | WS_CHILD | SS_LEFT,
-                        40, 180, 320, 15, hDlg, NULL, GetModuleHandle(NULL), NULL);
-            
-            // Apply font to all controls for consistency
-            SendMessage(hGroup, WM_SETFONT, (WPARAM)hFont, TRUE);
-            SendMessage(hUSBAlert, WM_SETFONT, (WPARAM)hFont, TRUE);
-            SendMessage(hQuickLaunch, WM_SETFONT, (WPARAM)hFont, TRUE);
-            SendMessage(hTimer, WM_SETFONT, (WPARAM)hFont, TRUE);
-            SendMessage(hTimerConfig, WM_SETFONT, (WPARAM)hFont, TRUE);
-            SendMessage(hStartWork, WM_SETFONT, (WPARAM)hFont, TRUE);
-            SendMessage(hQuickLaunchConfig, WM_SETFONT, (WPARAM)hFont, TRUE);
-            
-            // Apply font to static text controls
-            for (HWND hChild = GetWindow(hDlg, GW_CHILD); hChild; hChild = GetWindow(hChild, GW_HWNDNEXT)) {
-                char className[256];
-                GetClassName(hChild, className, sizeof(className));
-                if (strcmp(className, "STATIC") == 0) {
-                    SendMessage(hChild, WM_SETFONT, (WPARAM)hFont, TRUE);
-                }
-            }
+            // Initialize boss key controls  
+            CheckDlgButton(hDlg, IDC_CHECK_BOSS_KEY, dialog->tempSettings.bossKeyEnabled ? BST_CHECKED : BST_UNCHECKED);
+            SetDlgItemTextA(hDlg, IDC_EDIT_HOTKEY_BOSS, dialog->tempSettings.bossKeyHotkey.c_str());
+            EnableWindow(GetDlgItem(hDlg, IDC_EDIT_HOTKEY_BOSS), dialog->tempSettings.bossKeyEnabled);
+            EnableWindow(GetDlgItem(hDlg, IDC_BTN_BOSS_KEY_TEST), dialog->tempSettings.bossKeyEnabled);
             
             return TRUE;
         }
@@ -571,7 +518,7 @@ INT_PTR CALLBACK SettingsDialog::ProductivityTabProc(HWND hDlg, UINT message, WP
                     break;
                     
                 case IDC_BTN_QUICK_LAUNCH_CONFIG:
-                    MessageBoxA(hDlg, "Quick Launch Configuration:\n\nDefault hotkeys:\nF1 - Calculator\nF2 - Notepad\nF3 - File Explorer\n\n(Custom app configuration coming in next update)", 
+                    MessageBoxA(hDlg, "Quick Launch Configuration:\n\nDefault hotkeys:\nCtrl+F1 - Notepad\nCtrl+F2 - Calculator\nCtrl+Alt+F3 - File Explorer\n\n(Custom app configuration coming in next update)", 
                                "Quick Launch Settings", MB_OK | MB_ICONINFORMATION);
                     break;
                     
@@ -623,100 +570,20 @@ INT_PTR CALLBACK SettingsDialog::PrivacyTabProc(HWND hDlg, UINT message, WPARAM 
     
     switch (message) {
         case WM_INITDIALOG: {
-            // Create standard font for consistency
-            HFONT hFont = CreateFont(
-                -11,                // Height
-                0,                  // Width
-                0,                  // Escapement
-                0,                  // Orientation
-                FW_NORMAL,          // Weight
-                FALSE,              // Italic
-                FALSE,              // Underline
-                FALSE,              // StrikeOut
-                DEFAULT_CHARSET,    // CharSet
-                OUT_DEFAULT_PRECIS, // OutPrecision
-                CLIP_DEFAULT_PRECIS,// ClipPrecision
-                DEFAULT_QUALITY,    // Quality
-                DEFAULT_PITCH | FF_DONTCARE, // PitchAndFamily
-                "MS Shell Dlg"      // FaceName
-            );
-            
-            // Store font handle using SetProp for safe storage
-            SetProp(hDlg, TEXT("DialogFont"), hFont);
-            
-            // Create privacy feature controls
-            HWND hGroup = CreateWindow("BUTTON", "Privacy & Security Features", 
-                                     WS_VISIBLE | WS_CHILD | BS_GROUPBOX,
-                                     10, 10, 360, 280, hDlg, NULL, GetModuleHandle(NULL), NULL);
-            
-            // Start with Windows checkbox
-            HWND hStartupReg = CreateWindow("BUTTON", "Start with Windows", 
-                                          WS_VISIBLE | WS_CHILD | BS_AUTOCHECKBOX,
-                                          20, 35, 200, 20, hDlg, (HMENU)IDC_CHECK_START_WINDOWS, 
-                                          GetModuleHandle(NULL), NULL);
+            // Initialize privacy settings from current settings
             CheckDlgButton(hDlg, IDC_CHECK_START_WINDOWS, dialog->tempSettings.startWithWindows ? BST_CHECKED : BST_UNCHECKED);
             
-            // Boss Key section
-            CreateWindow("STATIC", "Boss Key (Emergency Hide):", 
-                        WS_VISIBLE | WS_CHILD | SS_LEFT,
-                        20, 60, 150, 15, hDlg, NULL, GetModuleHandle(NULL), NULL);
-            
-            HWND hBossKeyEnabled = CreateWindow("BUTTON", "Enable Boss Key", 
-                                              WS_VISIBLE | WS_CHILD | BS_AUTOCHECKBOX,
-                                              20, 110, 120, 20, hDlg, (HMENU)IDC_CHECK_BOSS_KEY, 
-                                              GetModuleHandle(NULL), NULL);
+            // Initialize boss key controls  
             CheckDlgButton(hDlg, IDC_CHECK_BOSS_KEY, dialog->tempSettings.bossKeyEnabled ? BST_CHECKED : BST_UNCHECKED);
-            
-            // Boss Key hotkey field (same pattern as Lock Input hotkey)
-            CreateWindow("STATIC", "Boss Key Hotkey:", 
-                        WS_VISIBLE | WS_CHILD | SS_LEFT,
-                        150, 110, 80, 15, hDlg, NULL, GetModuleHandle(NULL), NULL);
-            
-            HWND hBossKeyEdit = CreateWindow("EDIT", "", 
-                                           WS_VISIBLE | WS_CHILD | WS_BORDER | ES_READONLY,
-                                           150, 130, 160, 20, hDlg, (HMENU)IDC_EDIT_HOTKEY_BOSS, 
-                                           GetModuleHandle(NULL), NULL);
-            
-            // Set current boss key in the edit field
             SetDlgItemTextA(hDlg, IDC_EDIT_HOTKEY_BOSS, dialog->tempSettings.bossKeyHotkey.c_str());
+            EnableWindow(GetDlgItem(hDlg, IDC_EDIT_HOTKEY_BOSS), dialog->tempSettings.bossKeyEnabled);
+            EnableWindow(GetDlgItem(hDlg, IDC_BTN_BOSS_KEY_TEST), dialog->tempSettings.bossKeyEnabled);
             
-            HWND hBossKeyTest = CreateWindow("BUTTON", "Test", 
-                                           WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON,
-                                           320, 130, 40, 20, hDlg, (HMENU)IDC_BTN_BOSS_KEY_TEST, 
-                                           GetModuleHandle(NULL), NULL);
-            
-            // Status and help text
-            CreateWindow("STATIC", "Alt+Tab: Hides the application from the window switcher", 
-                        WS_VISIBLE | WS_CHILD | SS_LEFT,
-                        40, 140, 320, 15, hDlg, NULL, GetModuleHandle(NULL), NULL);
-            
-            CreateWindow("STATIC", "Startup: Automatically starts the app when Windows boots", 
-                        WS_VISIBLE | WS_CHILD | SS_LEFT,
-                        40, 155, 320, 15, hDlg, NULL, GetModuleHandle(NULL), NULL);
-            
-            CreateWindow("STATIC", "Boss Key: Instantly hides ALL desktop windows with Ctrl+Alt+H", 
-                        WS_VISIBLE | WS_CHILD | SS_LEFT,
-                        40, 170, 320, 15, hDlg, NULL, GetModuleHandle(NULL), NULL);
-            
-            CreateWindow("STATIC", "Press the boss key again to restore all hidden windows", 
-                        WS_VISIBLE | WS_CHILD | SS_LEFT,
-                        40, 185, 320, 15, hDlg, NULL, GetModuleHandle(NULL), NULL);
-            
-            // Apply font to all controls for consistency
-            SendMessage(hGroup, WM_SETFONT, (WPARAM)hFont, TRUE);
-            SendMessage(hStartupReg, WM_SETFONT, (WPARAM)hFont, TRUE);
-            SendMessage(hBossKeyEnabled, WM_SETFONT, (WPARAM)hFont, TRUE);
-            SendMessage(hBossKeyEdit, WM_SETFONT, (WPARAM)hFont, TRUE);
-            SendMessage(hBossKeyTest, WM_SETFONT, (WPARAM)hFont, TRUE);
-            
-            // Apply font to static text controls
-            for (HWND hChild = GetWindow(hDlg, GW_CHILD); hChild; hChild = GetWindow(hChild, GW_HWNDNEXT)) {
-                char className[256];
-                GetClassName(hChild, className, sizeof(className));
-                if (strcmp(className, "STATIC") == 0) {
-                    SendMessage(hChild, WM_SETFONT, (WPARAM)hFont, TRUE);
-                }
-            }
+            // Initialize emergency unlock controls
+            CheckDlgButton(hDlg, IDC_CHECK_UNLOCK_HOTKEY, dialog->tempSettings.unlockHotkeyEnabled ? BST_CHECKED : BST_UNCHECKED);
+            SetDlgItemTextA(hDlg, IDC_EDIT_UNLOCK_HOTKEY, dialog->tempSettings.unlockHotkey.c_str());
+            EnableWindow(GetDlgItem(hDlg, IDC_EDIT_UNLOCK_HOTKEY), dialog->tempSettings.unlockHotkeyEnabled);
+            EnableWindow(GetDlgItem(hDlg, IDC_BTN_TEST_UNLOCK), dialog->tempSettings.unlockHotkeyEnabled);
             
             return TRUE;
         }
@@ -733,9 +600,14 @@ INT_PTR CALLBACK SettingsDialog::PrivacyTabProc(HWND hDlg, UINT message, WPARAM 
                     break;
                 }
                 
+                // Boss key controls
                 case IDC_CHECK_BOSS_KEY: {
                     bool oldValue = dialog->tempSettings.bossKeyEnabled;
                     dialog->tempSettings.bossKeyEnabled = (IsDlgButtonChecked(hDlg, IDC_CHECK_BOSS_KEY) == BST_CHECKED);
+                    
+                    // Enable/disable related controls
+                    EnableWindow(GetDlgItem(hDlg, IDC_EDIT_HOTKEY_BOSS), dialog->tempSettings.bossKeyEnabled);
+                    EnableWindow(GetDlgItem(hDlg, IDC_BTN_BOSS_KEY_TEST), dialog->tempSettings.bossKeyEnabled);
                     
                     if (oldValue != dialog->tempSettings.bossKeyEnabled) {
                         dialog->hasUnsavedChanges = true;
@@ -744,15 +616,15 @@ INT_PTR CALLBACK SettingsDialog::PrivacyTabProc(HWND hDlg, UINT message, WPARAM 
                 }
                 
                 case IDC_EDIT_HOTKEY_BOSS:
-                    if (HIWORD(wParam) == EN_SETFOCUS) {
-                        // User clicked boss key textbox - start capture using modular system
+                    if (HIWORD(wParam) == EN_SETFOCUS && dialog->tempSettings.bossKeyEnabled) {
+                        // User clicked boss key textbox - start capture
                         HWND hEdit = GetDlgItem(hDlg, IDC_EDIT_HOTKEY_BOSS);
-                        HWND hHint = GetDlgItem(hDlg, IDC_LABEL_HOTKEY_HINT);
-                        g_hotkeyManager.StartCapture(hDlg, hEdit, hHint, dialog->tempSettings.bossKeyHotkey);
+                        g_hotkeyManager.StartCapture(hDlg, hEdit, NULL, dialog->tempSettings.bossKeyHotkey);
                     }
                     break;
                 
                 case IDC_BTN_BOSS_KEY_TEST: {
+                    extern PrivacyManager g_privacyManager;
                     if (g_privacyManager.IsBossKeyActive()) {
                         g_privacyManager.DeactivateBossKey();
                         MessageBoxA(hDlg, "Boss Key deactivated! All windows have been restored.", 
@@ -766,6 +638,34 @@ INT_PTR CALLBACK SettingsDialog::PrivacyTabProc(HWND hDlg, UINT message, WPARAM 
                     }
                     break;
                 }
+                
+                // Emergency unlock controls (Lock Input only)
+                case IDC_CHECK_UNLOCK_HOTKEY: {
+                    bool oldValue = dialog->tempSettings.unlockHotkeyEnabled;
+                    dialog->tempSettings.unlockHotkeyEnabled = (IsDlgButtonChecked(hDlg, IDC_CHECK_UNLOCK_HOTKEY) == BST_CHECKED);
+                    
+                    // Enable/disable related controls
+                    EnableWindow(GetDlgItem(hDlg, IDC_EDIT_UNLOCK_HOTKEY), dialog->tempSettings.unlockHotkeyEnabled);
+                    EnableWindow(GetDlgItem(hDlg, IDC_BTN_TEST_UNLOCK), dialog->tempSettings.unlockHotkeyEnabled);
+                    
+                    if (oldValue != dialog->tempSettings.unlockHotkeyEnabled) {
+                        dialog->hasUnsavedChanges = true;
+                    }
+                    break;
+                }
+                
+                case IDC_EDIT_UNLOCK_HOTKEY:
+                    if (HIWORD(wParam) == EN_SETFOCUS && dialog->tempSettings.unlockHotkeyEnabled) {
+                        // User clicked unlock hotkey textbox - start capture
+                        HWND hEdit = GetDlgItem(hDlg, IDC_EDIT_UNLOCK_HOTKEY);
+                        g_hotkeyManager.StartCapture(hDlg, hEdit, NULL, dialog->tempSettings.unlockHotkey);
+                    }
+                    break;
+                    
+                case IDC_BTN_TEST_UNLOCK:
+                    MessageBoxA(hDlg, "Emergency unlock test: This would bypass current unlock method for Lock Input only.\n\nNote: Emergency unlock only works when input is locked via Lock Input feature.", 
+                               "Emergency Unlock Test", MB_OK | MB_ICONINFORMATION);
+                    break;
             }
             break;
         }
@@ -899,38 +799,26 @@ void SettingsDialog::ReadUIValues() {
         tempSettings.keyboardLockEnabled = IsDlgButtonChecked(hTabLockInput, IDC_CHECK_KEYBOARD) == BST_CHECKED;
         tempSettings.mouseLockEnabled = IsDlgButtonChecked(hTabLockInput, IDC_CHECK_MOUSE) == BST_CHECKED;
         
-        // Read radio buttons for unlock method
+        // Read radio buttons for unlock method (only Password and Timer now)
         if (IsDlgButtonChecked(hTabLockInput, IDC_RADIO_PASSWORD) == BST_CHECKED) {
             tempSettings.unlockMethod = 0;
         } else if (IsDlgButtonChecked(hTabLockInput, IDC_RADIO_TIMER) == BST_CHECKED) {
             tempSettings.unlockMethod = 1;
-        } else if (IsDlgButtonChecked(hTabLockInput, IDC_RADIO_WHITELIST) == BST_CHECKED) {
-            tempSettings.unlockMethod = 2;
         }
+        
+        // Read whitelist checkbox separately (it's now an addon feature)
+        tempSettings.whitelistEnabled = IsDlgButtonChecked(hTabLockInput, IDC_CHECK_WHITELIST) == BST_CHECKED;
         
         // Read hotkey text
         char hotkeyBuffer[256];
         GetDlgItemTextA(hTabLockInput, IDC_EDIT_HOTKEY_LOCK, hotkeyBuffer, sizeof(hotkeyBuffer));
         tempSettings.lockHotkey = std::string(hotkeyBuffer);
         
-        // Convert hotkey string to modifiers and virtual key
-        StringToHotkey(tempSettings.lockHotkey, 
-                      (UINT&)tempSettings.hotkeyModifiers, 
-                      (UINT&)tempSettings.hotkeyVirtualKey);
-        
-        // Read unlock hotkey settings
-        tempSettings.unlockHotkeyEnabled = IsDlgButtonChecked(hTabLockInput, IDC_CHECK_UNLOCK_HOTKEY) == BST_CHECKED;
-        
-        if (tempSettings.unlockHotkeyEnabled) {
-            char unlockHotkeyBuffer[256];
-            GetDlgItemTextA(hTabLockInput, IDC_EDIT_UNLOCK_HOTKEY, unlockHotkeyBuffer, sizeof(unlockHotkeyBuffer));
-            tempSettings.unlockHotkey = std::string(unlockHotkeyBuffer);
-            
-            // Convert unlock hotkey string to modifiers and virtual key
-            StringToHotkey(tempSettings.unlockHotkey, 
-                          (UINT&)tempSettings.unlockHotkeyModifiers, 
-                          (UINT&)tempSettings.unlockHotkeyVirtualKey);
-        }
+        // Convert hotkey string to modifiers and virtual key using the parsing function
+        extern bool ParseHotkeyString(const std::string& hotkeyStr, UINT& modifiers, UINT& virtualKey);
+        ParseHotkeyString(tempSettings.lockHotkey, 
+                         (UINT&)tempSettings.hotkeyModifiers, 
+                         (UINT&)tempSettings.hotkeyVirtualKey);
     }
     
     // Read values from Productivity tab
@@ -949,6 +837,21 @@ void SettingsDialog::ReadUIValues() {
         char bossKeyBuffer[256];
         GetDlgItemTextA(hTabPrivacy, IDC_EDIT_HOTKEY_BOSS, bossKeyBuffer, sizeof(bossKeyBuffer));
         tempSettings.bossKeyHotkey = std::string(bossKeyBuffer);
+        
+        // Read emergency unlock hotkey settings
+        tempSettings.unlockHotkeyEnabled = IsDlgButtonChecked(hTabPrivacy, IDC_CHECK_UNLOCK_HOTKEY) == BST_CHECKED;
+        
+        if (tempSettings.unlockHotkeyEnabled) {
+            char unlockHotkeyBuffer[256];
+            GetDlgItemTextA(hTabPrivacy, IDC_EDIT_UNLOCK_HOTKEY, unlockHotkeyBuffer, sizeof(unlockHotkeyBuffer));
+            tempSettings.unlockHotkey = std::string(unlockHotkeyBuffer);
+            
+            // Convert unlock hotkey string to modifiers and virtual key
+            extern bool ParseHotkeyString(const std::string& hotkeyStr, UINT& modifiers, UINT& virtualKey);
+            ParseHotkeyString(tempSettings.unlockHotkey, 
+                             (UINT&)tempSettings.unlockHotkeyModifiers, 
+                             (UINT&)tempSettings.unlockHotkeyVirtualKey);
+        }
     }
     
     // Read values from Appearance tab
@@ -1138,23 +1041,4 @@ std::string HotkeyToString(UINT modifiers, UINT virtualKey) {
     result += (char)virtualKey;
     
     return result;
-}
-
-bool StringToHotkey(const std::string& hotkeyStr, UINT& modifiers, UINT& virtualKey) {
-    modifiers = 0;
-    virtualKey = 0;
-    
-    // Simple parsing (you can enhance this)
-    if (hotkeyStr.find("Ctrl") != std::string::npos) modifiers |= MOD_CONTROL;
-    if (hotkeyStr.find("Shift") != std::string::npos) modifiers |= MOD_SHIFT;
-    if (hotkeyStr.find("Alt") != std::string::npos) modifiers |= MOD_ALT;
-    if (hotkeyStr.find("Win") != std::string::npos) modifiers |= MOD_WIN;
-    
-    // Extract the key (simplified)
-    if (hotkeyStr.back() >= 'A' && hotkeyStr.back() <= 'Z') {
-        virtualKey = hotkeyStr.back();
-        return true;
-    }
-    
-    return false;
 }

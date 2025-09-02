@@ -2,56 +2,85 @@
 echo ========================================
 echo Building UtilityApp with Modular Architecture and Feature Modules...
 echo ========================================
-echo.
 
 REM Navigate to project root
 cd /d "%~dp0"
 
+REM Create obj directory if it doesn't exist
+if not exist obj mkdir obj
+
 echo [1/5] Compiling resources...
-windres resources\resources.rc -o resources.o
+windres resources\resources.rc -o obj\resources.o
 if %errorlevel% neq 0 (
     echo ERROR: Failed to compile resources
     pause
     exit /b 1
 )
 
-echo [2/5] Compiling core source files...
-g++ -c src\main.cpp -o main.o -std=c++17 -Isrc -Isrc\features
-g++ -c src\input_blocker.cpp -o input_blocker.o -std=c++17 -Isrc
-g++ -c src\tray_icon.cpp -o tray_icon.o -std=c++17 -Isrc
-g++ -c src\failsafe.cpp -o failsafe.o -std=c++17 -Isrc
-g++ -c src\notifications.cpp -o notifications.o -std=c++17 -Isrc
-g++ -c src\overlay.cpp -o overlay.o -std=c++17 -Isrc
-g++ -c src\custom_notifications.cpp -o custom_notifications.o -std=c++17 -Isrc
-g++ -c src\audio_manager.cpp -o audio_manager.o -std=c++17 -Isrc
-g++ -c src\settings.cpp -o settings.o -std=c++17 -Isrc -Isrc\features
+echo [2/5] Compiling core modules...
+gcc -c src\main.cpp -o obj\main.o
+gcc -c src\failsafe.cpp -o obj\failsafe.o
+gcc -c src\input_blocker.cpp -o obj\input_blocker.o
+gcc -c src\tray_icon.cpp -o obj\tray_icon.o
+gcc -c src\audio_manager.cpp -o obj\audio_manager.o
+gcc -c src\custom_notifications.cpp -o obj\custom_notifications.o
+gcc -c src\notifications.cpp -o obj\notifications.o
+gcc -c src\overlay.cpp -o obj\overlay.o
 if %errorlevel% neq 0 (
-    echo ERROR: Failed to compile core source files
+    echo ERROR: Failed to compile core modules
     pause
     exit /b 1
 )
 
-echo [3/5] Compiling settings components...
-g++ -c src\settings\settings_core.cpp -o settings_core.o -std=c++17 -Isrc -Isrc\features
-g++ -c src\settings\hotkey_manager.cpp -o hotkey_manager.o -std=c++17 -Isrc
-g++ -c src\settings\overlay_manager.cpp -o overlay_manager.o -std=c++17 -Isrc
+echo [3/5] Compiling settings system...
+gcc -c src\settings.cpp -o obj\settings.o
+gcc -c src\settings_ui.cpp -o obj\settings_ui.o
+gcc -c src\settings_api.cpp -o obj\settings_api.o
+gcc -c src\settings\hotkey_manager.cpp -o obj\hotkey_manager.o
+gcc -c src\settings\overlay_manager.cpp -o obj\overlay_manager.o
+gcc -c src\settings\password_manager.cpp -o obj\password_manager.o
+gcc -c src\settings\settings_core.cpp -o obj\settings_core.o
+gcc -c src\settings\timer_manager.cpp -o obj\timer_manager.o
 if %errorlevel% neq 0 (
-    echo ERROR: Failed to compile settings components
+    echo ERROR: Failed to compile settings system
     pause
     exit /b 1
 )
 
 echo [4/5] Compiling feature modules...
-g++ -c src\features\privacy\privacy_manager.cpp -o privacy_manager.o -std=c++17 -Isrc -Isrc\features
-g++ -c src\features\productivity\productivity_manager.cpp -o productivity_manager.o -std=c++17 -Isrc -Isrc\features
+gcc -c src\features\privacy\privacy_manager.cpp -o obj\privacy_manager.o
+gcc -c src\features\productivity\productivity_manager.cpp -o obj\productivity_manager.o
+gcc -c src\features\productivity\productivity_manager_simple.c -o obj\productivity_manager_simple.o
 if %errorlevel% neq 0 (
     echo ERROR: Failed to compile feature modules
     pause
     exit /b 1
 )
 
-echo [5/5] Linking final executable...
-g++ -o UtilityApp.exe resources.o main.o input_blocker.o tray_icon.o failsafe.o notifications.o overlay.o custom_notifications.o audio_manager.o settings.o settings_core.o hotkey_manager.o overlay_manager.o privacy_manager.o productivity_manager.o -static-libgcc -static-libstdc++ -std=c++17 -mwindows -luser32 -lshell32 -ladvapi32 -lcomctl32 -lcomdlg32 -lgdi32 -lmsimg32 -lwinmm -lole32 -ldwmapi -lcrypt32 -lsetupapi -lcfgmgr32
+echo [5/5] Linking executable...
+gcc -o UtilityApp.exe ^
+    obj\main.o ^
+    obj\failsafe.o ^
+    obj\input_blocker.o ^
+    obj\tray_icon.o ^
+    obj\audio_manager.o ^
+    obj\custom_notifications.o ^
+    obj\notifications.o ^
+    obj\overlay.o ^
+    obj\settings.o ^
+    obj\settings_ui.o ^
+    obj\settings_api.o ^
+    obj\hotkey_manager.o ^
+    obj\overlay_manager.o ^
+    obj\password_manager.o ^
+    obj\settings_core.o ^
+    obj\timer_manager.o ^
+    obj\privacy_manager.o ^
+    obj\productivity_manager.o ^
+    obj\productivity_manager_simple.o ^
+    obj\resources.o ^
+    -static-libgcc -static-libstdc++ -std=c++17 -mwindows -lgdi32 -luser32 -lshell32 -ladvapi32 -lcomctl32 -lstdc++ -lwinmm -lmsimg32 -ldwmapi
+
 if %errorlevel% neq 0 (
     echo ERROR: Failed to link executable
     pause
@@ -62,7 +91,22 @@ echo.
 echo ========================================
 echo BUILD SUCCESSFUL!
 echo ========================================
+echo.
+echo Modular UtilityApp has been built successfully!
+echo.
+echo Features compiled:
+echo  ✓ Core input blocking system
+echo  ✓ Privacy management features  
+echo  ✓ Productivity enhancement tools
+echo  ✓ Advanced settings system
+echo  ✓ Custom notifications
+echo  ✓ Audio feedback system
+echo  ✓ Overlay management
+echo  ✓ Tray icon integration
+echo  ✓ Failsafe mechanisms
+echo.
 echo Created: UtilityApp.exe
 echo Build completed at: %date% %time%
 echo.
+echo The application is ready to run!
 pause

@@ -36,10 +36,10 @@ ProductivityManager::ProductivityManager()
     
     LoadSettings();
     
-    // Initialize default quick launch apps
-    QuickLaunchApp notepad = {"Notepad", "notepad.exe", "", 'N', MOD_CONTROL | MOD_ALT, true};
-    QuickLaunchApp calc = {"Calculator", "calc.exe", "", 'C', MOD_CONTROL | MOD_ALT, true};
-    QuickLaunchApp explorer = {"File Explorer", "explorer.exe", "", 'E', MOD_CONTROL | MOD_ALT, true};
+    // Initialize default quick launch apps with personalized hotkeys
+    QuickLaunchApp notepad = {"Notepad", "C:\\Windows\\notepad.exe", "", VK_F1, MOD_CONTROL, true};
+    QuickLaunchApp calc = {"Calculator", "calc.exe", "", VK_F2, MOD_CONTROL, true};
+    QuickLaunchApp explorer = {"File Explorer", "explorer.exe", "", VK_F3, MOD_CONTROL | MOD_ALT, true};
     
     quickLaunchApps.push_back(notepad);
     quickLaunchApps.push_back(calc);
@@ -240,19 +240,20 @@ bool ProductivityManager::RemoveQuickLaunchApp(const std::string& name) {
     return false;
 }
 
-bool ProductivityManager::ExecuteQuickLaunchApp(UINT hotkey) {
-    for (const auto& app : quickLaunchApps) {
-        if (app.enabled && app.hotkey == hotkey) {
-            // Launch the application
-            SHELLEXECUTEINFOA sei = { 0 };
-            sei.cbSize = sizeof(sei);
-            sei.fMask = SEE_MASK_NOCLOSEPROCESS;
-            sei.lpVerb = "open";
-            sei.lpFile = app.path.c_str();
-            sei.lpParameters = app.arguments.empty() ? NULL : app.arguments.c_str();
-            sei.nShow = SW_SHOWNORMAL;
+bool ProductivityManager::ExecuteQuickLaunchApp(UINT hotkeyId) {
+    // Convert hotkey ID (5000-5099) to app index
+    int appIndex = hotkeyId - 5000;
+    
+    if (appIndex >= 0 && appIndex < quickLaunchApps.size()) {
+        const auto& app = quickLaunchApps[appIndex];
+        if (app.enabled) {
+            // Launch the application using ShellExecute for better compatibility
+            HINSTANCE result = ShellExecuteA(mainWindow, "open", app.path.c_str(), 
+                                           app.arguments.empty() ? NULL : app.arguments.c_str(), 
+                                           NULL, SW_SHOWNORMAL);
             
-            return ShellExecuteExA(&sei) != FALSE;
+            // ShellExecute returns value > 32 on success, <= 32 on error
+            return (INT_PTR)result > 32;
         }
     }
     

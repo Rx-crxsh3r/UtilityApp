@@ -29,8 +29,10 @@ class TimerManager;
 #define IDC_CHECK_MOUSE         221
 #define IDC_RADIO_PASSWORD      222
 #define IDC_RADIO_TIMER         223
-#define IDC_RADIO_WHITELIST     224
+#define IDC_CHECK_WHITELIST     224
 #define IDC_EDIT_HOTKEY_LOCK    225
+#define IDC_BTN_PASSWORD_CFG    226
+// Extended Lock & Input Tab Controls (that are not in resource.h)
 #define IDC_BTN_PASSWORD_CFG    226
 #define IDC_BTN_TIMER_CFG       227
 #define IDC_BTN_WHITELIST_CFG   228
@@ -38,6 +40,12 @@ class TimerManager;
 #define IDC_BTN_CANCEL_HOTKEY   230
 #define IDC_LABEL_HOTKEY_HINT   231
 #define IDC_LABEL_HOTKEY_WARNING 232
+// IDC_CHECK_UNLOCK_HOTKEY is now defined in resource.h as 307 (Privacy tab)
+// IDC_EDIT_UNLOCK_HOTKEY is now defined in resource.h as 308 (Privacy tab)
+#define IDC_LABEL_UNLOCK_HOTKEY 235
+// IDC_BTN_TEST_UNLOCK is now defined in resource.h as 309 (Privacy tab)
+
+// Note: Productivity and Privacy tab control IDs are defined in resource.h
 
 // Appearance Tab Controls
 #define IDC_RADIO_BLUR          240
@@ -101,6 +109,7 @@ public:
     void CreateTabDialogs();
     void ShowTabDialog(HWND hTab);
     void HideCurrentTab();
+    void RefreshCurrentTabControls();
     
     // Tab dialog procedures
     static INT_PTR CALLBACK LockInputTabProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
@@ -145,4 +154,3 @@ void SaveSettingsToFile();
 void ShowSettingsDialog(HWND parent);
 void RegisterHotkeyFromSettings(HWND hwnd);
 std::string HotkeyToString(UINT modifiers, UINT virtualKey);
-bool StringToHotkey(const std::string& hotkeyStr, UINT& modifiers, UINT& virtualKey);

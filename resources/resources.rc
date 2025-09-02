@@ -1,7 +1,6 @@
 // resources/resources.rc
 
 #include "../src/resource.h"
-#include "settings_dialogs.rc"
 
 // Icon
 IDI_APPICON ICON "icon.ico"
@@ -21,3 +20,6 @@ BEGIN
         MENUITEM "Exit", IDM_EXIT
     END
 END
+
+// Include dialog resources
+#include "settings_dialogs.rc"

@@ -367,13 +367,16 @@ bool SettingsCore::ReadRegistryValue(HKEY hKey, const char* valueName, DWORD& va
 }
 
 bool SettingsCore::ApplyHotkeySettings(const AppSettings& settings) {
-    // Apply hotkey settings using the global hotkey manager
-    extern HotkeyManager g_hotkeyManager;
+    // Apply hotkey settings by re-registering all hotkeys
+    extern HWND g_mainWindow;
+    extern void RegisterHotkeyFromSettings(HWND hwnd);
     
-    // Update the hotkey configuration
-    // This would typically involve re-registering hotkeys with the system
-    // For now, just return true since the hotkey system should pick up changes
-    return true;
+    if (g_mainWindow) {
+        RegisterHotkeyFromSettings(g_mainWindow);
+        return true;
+    }
+    
+    return false;
 }
 
 bool SettingsCore::ApplyPrivacySettings(const AppSettings& settings, HWND mainWindow) {
@@ -396,12 +399,12 @@ bool SettingsCore::ApplyPrivacySettings(const AppSettings& settings, HWND mainWi
         if (settings.bossKeyEnabled) {
             // Parse boss key hotkey string to get modifiers and virtual key
             UINT modifiers, virtualKey;
-            extern bool StringToHotkey(const std::string& hotkeyStr, UINT& modifiers, UINT& virtualKey);
-            if (StringToHotkey(settings.bossKeyHotkey, modifiers, virtualKey)) {
+            extern bool ParseHotkeyString(const std::string& hotkeyStr, UINT& modifiers, UINT& virtualKey);
+            if (ParseHotkeyString(settings.bossKeyHotkey, modifiers, virtualKey)) {
                 success &= g_privacyManager.EnableBossKey(modifiers, virtualKey);
             } else {
-                // Fallback to default if parsing fails
-                success &= g_privacyManager.EnableBossKey(MOD_CONTROL | MOD_ALT, 'H');
+                // Fallback to default if parsing fails (Ctrl+Alt+F11)
+                success &= g_privacyManager.EnableBossKey(MOD_CONTROL | MOD_ALT, VK_F11);
             }
         } else {
             g_privacyManager.DisableBossKey();

@@ -35,7 +35,7 @@ bool PasswordManager::SetPassword(const std::string& newPassword) {
 }
 
 bool PasswordManager::ValidatePassword(const std::string& inputPassword) {
-    if (!isPasswordSet) return true; // No password set
+    if (!isPasswordSet) return false; // No password set - validation should fail
     return VerifyHash(inputPassword, hashedPassword);
 }
 

@@ -14,7 +14,7 @@ const char* PrivacyManager::STARTUP_VALUE_NAME = "UtilityApp";
 PrivacyManager::PrivacyManager()
     : bossKeyActive(false), targetWindow(NULL), originalExStyle(0),
       isHiddenFromTaskbar(false), isHiddenFromAltTab(false),
-      bossKeyModifiers(MOD_CONTROL | MOD_ALT), bossKeyVirtualKey('H') {
+      bossKeyModifiers(MOD_CONTROL | MOD_SHIFT), bossKeyVirtualKey('B') {
     LoadSettings();
 }
 
@@ -139,9 +139,11 @@ bool PrivacyManager::SetBossKeyHotkey(UINT modifiers, UINT virtualKey) {
 bool PrivacyManager::ActivateBossKey() {
     if (bossKeyActive) return true;
     
+    // Pre-allocate vector for better performance
     hiddenWindows.clear();
+    hiddenWindows.reserve(50); // Reserve space for typical window count
     
-    // Enumerate all visible windows and hide them
+    // Enumerate all visible windows and hide them efficiently
     EnumWindows(EnumWindowsProc, reinterpret_cast<LPARAM>(this));
     
     bossKeyActive = true;
@@ -171,37 +173,49 @@ bool PrivacyManager::DeactivateBossKey() {
 BOOL CALLBACK PrivacyManager::EnumWindowsProc(HWND hwnd, LPARAM lParam) {
     PrivacyManager* manager = reinterpret_cast<PrivacyManager*>(lParam);
     
-    // Quick checks first for performance
+    // Quick checks first for performance - fail fast
     if (!IsWindowVisible(hwnd)) return TRUE;
     if (GetParent(hwnd) != NULL) return TRUE; // Skip child windows
     
-    // Quick class name check to skip system windows
-    char className[64]; // Reduced buffer size
-    if (GetClassNameA(hwnd, className, sizeof(className)) > 0) {
-        // Skip essential system windows
-        if (strcmp(className, "Shell_TrayWnd") == 0 ||     // Taskbar
-            strcmp(className, "Progman") == 0 ||           // Desktop
-            strcmp(className, "WorkerW") == 0 ||           // Desktop worker
-            strstr(className, "Button") != NULL) {         // Start button, etc.
-            return TRUE;
+    // Quick style check to skip windows without title bar (most efficient filter)
+    LONG style = GetWindowLong(hwnd, GWL_STYLE);
+    if (!(style & WS_CAPTION)) return TRUE;
+    
+    // Quick class name check to skip system windows (using faster, shorter buffer)
+    char className[32]; // Reduced from 64 to 32 for faster allocation
+    int classNameLen = GetClassNameA(hwnd, className, sizeof(className));
+    if (classNameLen > 0) {
+        // Use switch on first character for faster filtering
+        switch (className[0]) {
+            case 'S': // Shell_TrayWnd
+                if (strcmp(className, "Shell_TrayWnd") == 0) return TRUE;
+                break;
+            case 'P': // Progman
+                if (strcmp(className, "Progman") == 0) return TRUE;
+                break;
+            case 'W': // WorkerW
+                if (strcmp(className, "WorkerW") == 0) return TRUE;
+                break;
+            case 'B': // Button
+                if (strncmp(className, "Button", 6) == 0) return TRUE;
+                break;
         }
     }
     
-    // Check window style for performance
-    LONG style = GetWindowLong(hwnd, GWL_STYLE);
-    if (!(style & WS_CAPTION)) return TRUE; // Skip windows without title bar
-    
-    // Only store essential info and hide immediately
+    // Only store essential info and hide immediately for performance
     WindowState state;
     state.hwnd = hwnd;
-    state.wasVisible = true; // We already checked this
+    state.wasVisible = true; // We already verified this
     GetWindowRect(hwnd, &state.originalRect);
-    state.windowTitle = ""; // Skip title retrieval for performance
+    state.windowTitle = ""; // Skip title for performance - not needed for restore
     
+    // Hide window immediately to reduce UI flicker
     ShowWindow(hwnd, SW_HIDE);
+    
+    // Store state for later restoration (do this after hiding for responsiveness)
     manager->hiddenWindows.push_back(state);
     
-    return TRUE;
+    return TRUE; // Continue enumeration
 }
 
 bool PrivacyManager::SetStartWithWindows(bool enable) {

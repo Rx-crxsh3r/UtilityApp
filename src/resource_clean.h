@@ -20,7 +20,6 @@
 // Hotkey IDs
 #define HOTKEY_ID_LOCK 1
 #define HOTKEY_ID_UNLOCK 2
-#define HOTKEY_ID_EMERGENCY_UNLOCK 3
 
 // Settings Dialog Resource IDs
 #define IDD_SETTINGS_DIALOG     200

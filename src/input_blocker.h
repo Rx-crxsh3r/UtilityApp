@@ -2,6 +2,7 @@
 
 #pragma once
 #include <windows.h>
+#include <string>
 
 // Initialize the input blocker with cached window handle for performance
 void InitializeInputBlocker(HWND hwnd);
@@ -20,3 +21,6 @@ void UninstallHook();
 
 // Refresh hooks when settings change (reinstalls based on current settings)
 void RefreshHooks();
+
+// Access to password buffer for custom validation (extern declaration)
+extern std::wstring g_passwordBuffer;

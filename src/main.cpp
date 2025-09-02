@@ -1,6 +1,9 @@
 // src/main.cpp
 
 #include <windows.h>
+#include <algorithm>
+#include <string>
+#include <cctype>
 #include "resource.h"
 #include "tray_icon.h"
 #include "input_blocker.h"
@@ -12,6 +15,19 @@
 #include "audio_manager.h"
 #include "features/productivity/productivity_manager.h"
 #include "features/privacy/privacy_manager.h"
+
+// Forward declarations
+extern Failsafe failsafeHandler;
+extern const char CLASS_NAME[];
+extern HWND g_mainWindow;
+
+// Function to register hotkeys based on current settings
+void RegisterHotkeyFromSettings(HWND hwnd);
+
+// Utility function to parse hotkey strings (e.g., "Ctrl+Alt+F12")
+bool ParseHotkeyString(const std::string& hotkeyStr, UINT& modifiers, UINT& virtualKey);
+#include "features/privacy/privacy_manager.h"
+#include "settings/password_manager.h"
 
 // Global variables
 extern const char CLASS_NAME[] = "UtilityAppClass";
@@ -29,7 +45,7 @@ void RegisterHotkeyFromSettings(HWND hwnd);
 // Window Procedure
 LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     switch (uMsg) {
-        case WM_CREATE:
+        case WM_CREATE: {
             // Initialize settings system
             InitializeSettings();
             // Initialize custom notification system
@@ -38,27 +54,42 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
             InitializeAudio();
             // Initialize input blocker with window handle for performance
             InitializeInputBlocker(hwnd);
+            
             // Initialize productivity manager with main window
             g_productivityManager.SetMainWindow(hwnd);
+            
+            // Enable productivity features based on settings
+            if (g_appSettings.quickLaunchEnabled) {
+                g_productivityManager.EnableQuickLaunch();
+            }
+            if (g_appSettings.usbAlertEnabled) {
+                g_productivityManager.EnableUSBAlert(hwnd);
+            }
+            
             // Add the icon to the system tray on window creation
             AddTrayIcon(hwnd);
             // Show startup notification
             ShowNotification(hwnd, NOTIFY_APP_START);
             
-            // Load settings and register hotkeys based on settings
-            InitializeSettings();
+            // Register hotkeys based on settings
             RegisterHotkeyFromSettings(hwnd);
             
             // Install the keyboard hook to listen for unlock sequence
             InstallHook();
             break;
+        }
 
         case WM_HOTKEY:
             // Handle the global hotkey press
             if (wParam == HOTKEY_ID_LOCK) {
                 ToggleInputLock(hwnd);
             } else if (wParam == HOTKEY_ID_UNLOCK) {
-                // Force unlock
+                // Regular unlock (Ctrl+O)
+                if (IsInputLocked()) {
+                    ToggleInputLock(hwnd);
+                }
+            } else if (wParam == HOTKEY_ID_EMERGENCY_UNLOCK) {
+                // Emergency unlock - only works for Lock Input feature and bypasses unlock method
                 if (IsInputLocked()) {
                     ToggleInputLock(hwnd);
                 }
@@ -67,7 +98,19 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
                 auto apps = g_productivityManager.GetQuickLaunchApps();
                 int appIndex = wParam - 5000;
                 if (appIndex < apps.size() && apps[appIndex].enabled) {
-                    g_productivityManager.ExecuteQuickLaunchApp(apps[appIndex].hotkey);
+                    // Pass the hotkey ID directly
+                    if (g_productivityManager.ExecuteQuickLaunchApp(wParam)) {
+                        ShowNotification(hwnd, NOTIFY_APP_START, "Application launched successfully");
+                    } else {
+                        ShowNotification(hwnd, NOTIFY_HOTKEY_ERROR, "Failed to launch application");
+                    }
+                }
+            } else if (wParam == 9001) {
+                // Boss Key hotkey (registered by PrivacyManager)
+                if (g_privacyManager.IsBossKeyActive()) {
+                    g_privacyManager.DeactivateBossKey();
+                } else {
+                    g_privacyManager.ActivateBossKey();
                 }
             }
             break;
@@ -149,6 +192,80 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
             }
             break;
             
+        case WM_USER + 101: {
+            // Custom message: Check custom password validation (deferred from hook)
+            // wParam contains the current buffer length for optimization
+            extern std::wstring g_passwordBuffer;
+            if (IsInputLocked() && wParam >= 3) {
+                // OPTIMIZATION: More efficient string conversion to reduce memory usage
+                std::string currentInput;
+                size_t bufferLen = std::min((size_t)wParam, (size_t)32); // Reasonable password limit
+                currentInput.reserve(bufferLen + 1);
+                
+                // Convert wstring to string properly for password validation
+                for (size_t i = 0; i < g_passwordBuffer.length(); i++) {
+                    currentInput += (char)g_passwordBuffer[i];
+                }
+                
+                // Check if this matches the custom password
+                if (g_passwordManager.ValidatePassword(currentInput)) {
+                    PostMessage(hwnd, WM_USER + 100, 0, 0); // Trigger unlock
+                    g_passwordBuffer.clear();
+                } else {
+                    // Also check if the end of the buffer matches the password for rolling validation
+                    if (currentInput.length() > 8) { // Only check rolling for longer inputs
+                        for (size_t start = 1; start < currentInput.length() - 3; start++) {
+                            std::string substring = currentInput.substr(start);
+                            if (g_passwordManager.ValidatePassword(substring)) {
+                                PostMessage(hwnd, WM_USER + 100, 0, 0); // Trigger unlock
+                                g_passwordBuffer.clear();
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            break;
+        }
+        
+        case WM_USER + 102: {
+            // Deferred notification display to prevent input lag
+            NotificationType type = (NotificationType)wParam;
+            char* deferredMessage = (char*)lParam;
+            
+            const char* title = "UtilityApp";
+            const char* message = deferredMessage ? deferredMessage : "Notification";
+            DWORD iconType = NIIF_INFO;
+            
+            // Set appropriate icon based on type
+            switch (type) {
+                case NOTIFY_INPUT_LOCKED:
+                case NOTIFY_FAILSAFE_TRIGGERED:
+                    iconType = NIIF_WARNING;
+                    break;
+                case NOTIFY_HOTKEY_ERROR:
+                    iconType = NIIF_ERROR;
+                    break;
+                default:
+                    iconType = NIIF_INFO;
+                    break;
+            }
+            
+            // Display notification now that we're out of the hook context
+            if (g_customNotifications) {
+                g_customNotifications->ShowNotification(title, message);
+            } else {
+                extern void ShowBalloonTip(HWND hwnd, const char* title, const char* message, DWORD iconType);
+                ShowBalloonTip(hwnd, title, message, iconType);
+            }
+            
+            // Clean up dynamically allocated message
+            if (deferredMessage) {
+                free(deferredMessage);
+            }
+            break;
+        }
+        
         case WM_CLOSE:
             DestroyWindow(hwnd);
             break;
@@ -158,6 +275,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
             RemoveTrayIcon(hwnd);
             UnregisterHotKey(hwnd, HOTKEY_ID_LOCK);
             UnregisterHotKey(hwnd, HOTKEY_ID_UNLOCK);
+            UnregisterHotKey(hwnd, HOTKEY_ID_EMERGENCY_UNLOCK);
             UninstallHook();
             CleanupCustomNotifications();
             CleanupAudio();
@@ -229,6 +347,7 @@ void RegisterHotkeyFromSettings(HWND hwnd) {
     // Unregister existing hotkeys first
     UnregisterHotKey(hwnd, HOTKEY_ID_LOCK);
     UnregisterHotKey(hwnd, HOTKEY_ID_UNLOCK);
+    UnregisterHotKey(hwnd, HOTKEY_ID_EMERGENCY_UNLOCK);
     
     // Register lock hotkey from settings
     if (!RegisterHotKey(hwnd, HOTKEY_ID_LOCK, g_appSettings.hotkeyModifiers, g_appSettings.hotkeyVirtualKey)) {
@@ -236,17 +355,94 @@ void RegisterHotkeyFromSettings(HWND hwnd) {
         ShowNotification(hwnd, NOTIFY_HOTKEY_ERROR, "Failed to register lock hotkey");
     }
     
-    // Register unlock hotkey if enabled
+    // Register regular unlock hotkey (Ctrl+O)
+    if (!RegisterHotKey(hwnd, HOTKEY_ID_UNLOCK, MOD_CONTROL, 'O')) {
+        MessageBoxA(hwnd, "Failed to register unlock hotkey!", "Error", MB_OK | MB_ICONERROR);
+        ShowNotification(hwnd, NOTIFY_HOTKEY_ERROR, "Failed to register unlock hotkey");
+    }
+    
+    // Register emergency unlock hotkey if enabled (separate from regular unlock)
     if (g_appSettings.unlockHotkeyEnabled) {
-        if (!RegisterHotKey(hwnd, HOTKEY_ID_UNLOCK, g_appSettings.unlockHotkeyModifiers, g_appSettings.unlockHotkeyVirtualKey)) {
-            MessageBoxA(hwnd, "Failed to register unlock hotkey!", "Error", MB_OK | MB_ICONERROR);
-            ShowNotification(hwnd, NOTIFY_HOTKEY_ERROR, "Failed to register unlock hotkey");
-        }
-    } else {
-        // Fallback to default unlock hotkey (Ctrl+O) if custom unlock is disabled
-        if (!RegisterHotKey(hwnd, HOTKEY_ID_UNLOCK, MOD_CONTROL, 'O')) {
-            MessageBoxA(hwnd, "Failed to register default unlock hotkey!", "Error", MB_OK | MB_ICONERROR);
-            ShowNotification(hwnd, NOTIFY_HOTKEY_ERROR, "Failed to register unlock hotkey");
+        if (!RegisterHotKey(hwnd, HOTKEY_ID_EMERGENCY_UNLOCK, g_appSettings.unlockHotkeyModifiers, g_appSettings.unlockHotkeyVirtualKey)) {
+            MessageBoxA(hwnd, "Failed to register emergency unlock hotkey!", "Error", MB_OK | MB_ICONERROR);
+            ShowNotification(hwnd, NOTIFY_HOTKEY_ERROR, "Failed to register emergency unlock hotkey");
         }
     }
+}
+
+// Utility function to parse hotkey strings (e.g., "Ctrl+Alt+F12")
+bool ParseHotkeyString(const std::string& hotkeyStr, UINT& modifiers, UINT& virtualKey) {
+    modifiers = 0;
+    virtualKey = 0;
+    
+    if (hotkeyStr.empty()) return false;
+    
+    // Convert to uppercase for easier parsing
+    std::string upperStr = hotkeyStr;
+    std::transform(upperStr.begin(), upperStr.end(), upperStr.begin(), ::toupper);
+    
+    // Parse modifiers
+    if (upperStr.find("CTRL") != std::string::npos) {
+        modifiers |= MOD_CONTROL;
+    }
+    if (upperStr.find("ALT") != std::string::npos) {
+        modifiers |= MOD_ALT;
+    }
+    if (upperStr.find("SHIFT") != std::string::npos) {
+        modifiers |= MOD_SHIFT;
+    }
+    if (upperStr.find("WIN") != std::string::npos) {
+        modifiers |= MOD_WIN;
+    }
+    
+    // Find the main key (after the last '+')
+    size_t lastPlus = upperStr.find_last_of('+');
+    std::string keyStr;
+    if (lastPlus != std::string::npos) {
+        keyStr = upperStr.substr(lastPlus + 1);
+    } else {
+        keyStr = upperStr; // No modifiers, just the key
+    }
+    
+    // Parse virtual key
+    if (keyStr.length() == 1 && keyStr[0] >= 'A' && keyStr[0] <= 'Z') {
+        virtualKey = keyStr[0]; // Letter key
+    } else if (keyStr.length() == 1 && keyStr[0] >= '0' && keyStr[0] <= '9') {
+        virtualKey = keyStr[0]; // Number key
+    } else if (keyStr.substr(0, 1) == "F" && keyStr.length() >= 2) {
+        // Function key (F1-F12)
+        int funcNum = std::atoi(keyStr.substr(1).c_str());
+        if (funcNum >= 1 && funcNum <= 12) {
+            virtualKey = VK_F1 + (funcNum - 1);
+        }
+    } else {
+        // Special keys
+        if (keyStr == "ESC" || keyStr == "ESCAPE") {
+            virtualKey = VK_ESCAPE;
+        } else if (keyStr == "SPACE") {
+            virtualKey = VK_SPACE;
+        } else if (keyStr == "ENTER" || keyStr == "RETURN") {
+            virtualKey = VK_RETURN;
+        } else if (keyStr == "TAB") {
+            virtualKey = VK_TAB;
+        } else if (keyStr == "BACKSPACE") {
+            virtualKey = VK_BACK;
+        } else if (keyStr == "DELETE" || keyStr == "DEL") {
+            virtualKey = VK_DELETE;
+        } else if (keyStr == "INSERT" || keyStr == "INS") {
+            virtualKey = VK_INSERT;
+        } else if (keyStr == "HOME") {
+            virtualKey = VK_HOME;
+        } else if (keyStr == "END") {
+            virtualKey = VK_END;
+        } else if (keyStr == "PAGE_UP" || keyStr == "PGUP") {
+            virtualKey = VK_PRIOR;
+        } else if (keyStr == "PAGE_DOWN" || keyStr == "PGDN") {
+            virtualKey = VK_NEXT;
+        } else {
+            return false; // Unrecognized key
+        }
+    }
+    
+    return virtualKey != 0;
 }
