@@ -465,12 +465,6 @@ INT_PTR CALLBACK SettingsDialog::ProductivityTabProc(HWND hDlg, UINT message, WP
             CheckDlgButton(hDlg, IDC_CHECK_QUICK_LAUNCH, dialog->tempSettings.quickLaunchEnabled ? BST_CHECKED : BST_UNCHECKED);
             CheckDlgButton(hDlg, IDC_CHECK_TIMER, dialog->tempSettings.workBreakTimerEnabled ? BST_CHECKED : BST_UNCHECKED);
             
-            // Initialize emergency unlock controls
-            CheckDlgButton(hDlg, IDC_CHECK_UNLOCK_HOTKEY, dialog->tempSettings.unlockHotkeyEnabled ? BST_CHECKED : BST_UNCHECKED);
-            SetDlgItemTextA(hDlg, IDC_EDIT_UNLOCK_HOTKEY, dialog->tempSettings.unlockHotkey.c_str());
-            EnableWindow(GetDlgItem(hDlg, IDC_EDIT_UNLOCK_HOTKEY), dialog->tempSettings.unlockHotkeyEnabled);
-            EnableWindow(GetDlgItem(hDlg, IDC_BTN_TEST_UNLOCK), dialog->tempSettings.unlockHotkeyEnabled);
-            
             // Initialize boss key controls  
             CheckDlgButton(hDlg, IDC_CHECK_BOSS_KEY, dialog->tempSettings.bossKeyEnabled ? BST_CHECKED : BST_UNCHECKED);
             SetDlgItemTextA(hDlg, IDC_EDIT_HOTKEY_BOSS, dialog->tempSettings.bossKeyHotkey.c_str());
@@ -579,12 +573,6 @@ INT_PTR CALLBACK SettingsDialog::PrivacyTabProc(HWND hDlg, UINT message, WPARAM 
             EnableWindow(GetDlgItem(hDlg, IDC_EDIT_HOTKEY_BOSS), dialog->tempSettings.bossKeyEnabled);
             EnableWindow(GetDlgItem(hDlg, IDC_BTN_BOSS_KEY_TEST), dialog->tempSettings.bossKeyEnabled);
             
-            // Initialize emergency unlock controls
-            CheckDlgButton(hDlg, IDC_CHECK_UNLOCK_HOTKEY, dialog->tempSettings.unlockHotkeyEnabled ? BST_CHECKED : BST_UNCHECKED);
-            SetDlgItemTextA(hDlg, IDC_EDIT_UNLOCK_HOTKEY, dialog->tempSettings.unlockHotkey.c_str());
-            EnableWindow(GetDlgItem(hDlg, IDC_EDIT_UNLOCK_HOTKEY), dialog->tempSettings.unlockHotkeyEnabled);
-            EnableWindow(GetDlgItem(hDlg, IDC_BTN_TEST_UNLOCK), dialog->tempSettings.unlockHotkeyEnabled);
-            
             return TRUE;
         }
         
@@ -638,34 +626,6 @@ INT_PTR CALLBACK SettingsDialog::PrivacyTabProc(HWND hDlg, UINT message, WPARAM 
                     }
                     break;
                 }
-                
-                // Emergency unlock controls (Lock Input only)
-                case IDC_CHECK_UNLOCK_HOTKEY: {
-                    bool oldValue = dialog->tempSettings.unlockHotkeyEnabled;
-                    dialog->tempSettings.unlockHotkeyEnabled = (IsDlgButtonChecked(hDlg, IDC_CHECK_UNLOCK_HOTKEY) == BST_CHECKED);
-                    
-                    // Enable/disable related controls
-                    EnableWindow(GetDlgItem(hDlg, IDC_EDIT_UNLOCK_HOTKEY), dialog->tempSettings.unlockHotkeyEnabled);
-                    EnableWindow(GetDlgItem(hDlg, IDC_BTN_TEST_UNLOCK), dialog->tempSettings.unlockHotkeyEnabled);
-                    
-                    if (oldValue != dialog->tempSettings.unlockHotkeyEnabled) {
-                        dialog->hasUnsavedChanges = true;
-                    }
-                    break;
-                }
-                
-                case IDC_EDIT_UNLOCK_HOTKEY:
-                    if (HIWORD(wParam) == EN_SETFOCUS && dialog->tempSettings.unlockHotkeyEnabled) {
-                        // User clicked unlock hotkey textbox - start capture
-                        HWND hEdit = GetDlgItem(hDlg, IDC_EDIT_UNLOCK_HOTKEY);
-                        g_hotkeyManager.StartCapture(hDlg, hEdit, NULL, dialog->tempSettings.unlockHotkey);
-                    }
-                    break;
-                    
-                case IDC_BTN_TEST_UNLOCK:
-                    MessageBoxA(hDlg, "Emergency unlock test: This would bypass current unlock method for Lock Input only.\n\nNote: Emergency unlock only works when input is locked via Lock Input feature.", 
-                               "Emergency Unlock Test", MB_OK | MB_ICONINFORMATION);
-                    break;
             }
             break;
         }
@@ -837,21 +797,6 @@ void SettingsDialog::ReadUIValues() {
         char bossKeyBuffer[256];
         GetDlgItemTextA(hTabPrivacy, IDC_EDIT_HOTKEY_BOSS, bossKeyBuffer, sizeof(bossKeyBuffer));
         tempSettings.bossKeyHotkey = std::string(bossKeyBuffer);
-        
-        // Read emergency unlock hotkey settings
-        tempSettings.unlockHotkeyEnabled = IsDlgButtonChecked(hTabPrivacy, IDC_CHECK_UNLOCK_HOTKEY) == BST_CHECKED;
-        
-        if (tempSettings.unlockHotkeyEnabled) {
-            char unlockHotkeyBuffer[256];
-            GetDlgItemTextA(hTabPrivacy, IDC_EDIT_UNLOCK_HOTKEY, unlockHotkeyBuffer, sizeof(unlockHotkeyBuffer));
-            tempSettings.unlockHotkey = std::string(unlockHotkeyBuffer);
-            
-            // Convert unlock hotkey string to modifiers and virtual key
-            extern bool ParseHotkeyString(const std::string& hotkeyStr, UINT& modifiers, UINT& virtualKey);
-            ParseHotkeyString(tempSettings.unlockHotkey, 
-                             (UINT&)tempSettings.unlockHotkeyModifiers, 
-                             (UINT&)tempSettings.unlockHotkeyVirtualKey);
-        }
     }
     
     // Read values from Appearance tab
@@ -920,7 +865,7 @@ void SettingsDialog::UpdateWarnings() {
     // Warning 1: Password won't work if keyboard is unlocked
     HWND hWarning1 = GetDlgItem(hTabLockInput, IDC_WARNING_KEYBOARD_UNLOCK);
     if (hWarning1 && !keyboardEnabled && passwordSelected) {
-        SetWindowTextA(hWarning1, "!!WARNING!!: Password unlock will not work with keyboard unlocked.\r\nUse emergency unlock hotkey instead.");
+        SetWindowTextA(hWarning1, "!!WARNING!!: Password unlock will not work with keyboard unlocked.");
         ShowWindow(hWarning1, SW_SHOW);
     } else if (hWarning1) {
         ShowWindow(hWarning1, SW_HIDE);
@@ -960,51 +905,23 @@ void SettingsDialog::CreateWarningControls(HWND hDlg) {
     }
     
     // Create Warning 2: Locking mechanism disabled
-    // Position: Below the Emergency Unlock Hotkey section
+    // Position: Below the Input Types section
     HWND hWarning2 = CreateWindowA("STATIC", "",
         WS_CHILD | SS_LEFT,
-        20, 400, 360, 30,  // x, y, width, height (moved down below emergency unlock)
+        20, 320, 360, 30,  // x, y, width, height
         hDlg, (HMENU)IDC_WARNING_LOCKING_DISABLED, GetModuleHandle(NULL), NULL);
     if (hWarning2) {
         SendMessage(hWarning2, WM_SETFONT, (WPARAM)hDialogFont, TRUE);
     }
     
     // Create Warning 3: Single key hotkey warning
-    // Position: Below the hotkey input (keep same position)
+    // Position: Below the hotkey input
     HWND hWarning3 = CreateWindowA("STATIC", "",
         WS_CHILD | SS_LEFT,
-        20, 320, 360, 30,  // x, y, width, height
+        20, 360, 360, 30,  // x, y, width, height
         hDlg, (HMENU)IDC_WARNING_SINGLE_KEY, GetModuleHandle(NULL), NULL);
     if (hWarning3) {
         SendMessage(hWarning3, WM_SETFONT, (WPARAM)hDialogFont, TRUE);
-    }
-    
-    // Create unlock hotkey controls
-    // Label for unlock hotkey
-    HWND hUnlockLabel = CreateWindowA("STATIC", "Emergency Unlock Hotkey:",
-        WS_CHILD | WS_VISIBLE | SS_LEFT,
-        20, 350, 150, 20,
-        hDlg, (HMENU)IDC_LABEL_UNLOCK_HOTKEY, GetModuleHandle(NULL), NULL);
-    if (hUnlockLabel) {
-        SendMessage(hUnlockLabel, WM_SETFONT, (WPARAM)hDialogFont, TRUE);
-    }
-    
-    // Checkbox to enable unlock hotkey
-    HWND hUnlockCheck = CreateWindowA("BUTTON", "Enable",
-        WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
-        180, 348, 60, 24,
-        hDlg, (HMENU)IDC_CHECK_UNLOCK_HOTKEY, GetModuleHandle(NULL), NULL);
-    if (hUnlockCheck) {
-        SendMessage(hUnlockCheck, WM_SETFONT, (WPARAM)hDialogFont, TRUE);
-    }
-    
-    // Text box for unlock hotkey
-    HWND hUnlockEdit = CreateWindowExA(WS_EX_CLIENTEDGE, "EDIT", "",
-        WS_CHILD | WS_VISIBLE | ES_LEFT | ES_READONLY,
-        250, 348, 120, 24,
-        hDlg, (HMENU)IDC_EDIT_UNLOCK_HOTKEY, GetModuleHandle(NULL), NULL);
-    if (hUnlockEdit) {
-        SendMessage(hUnlockEdit, WM_SETFONT, (WPARAM)hDialogFont, TRUE);
     }
 }
 

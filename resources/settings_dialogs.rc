@@ -113,19 +113,12 @@ BEGIN
     CONTROL         "Start with Windows", IDC_CHECK_START_WINDOWS, "Button", BS_AUTOCHECKBOX | WS_CHILD | WS_VISIBLE | WS_TABSTOP, 20, 30, 120, 10
     LTEXT           "Automatically starts the app when Windows boots", -1, 40, 45, 300, 8
     
-    GROUPBOX        "Boss Key (Quick Hide)", -1, 20, 70, 340, 60
+    GROUPBOX        "Boss Key (Quick Hide)", -1, 20, 70, 340, 120
     CONTROL         "Enable Boss Key", IDC_CHECK_BOSS_KEY, "Button", BS_AUTOCHECKBOX | WS_CHILD | WS_VISIBLE | WS_TABSTOP, 30, 85, 100, 10
     LTEXT           "Boss Key Hotkey:", -1, 30, 105, 80, 8
     EDITTEXT        IDC_EDIT_HOTKEY_BOSS, 110, 103, 100, 14, ES_READONLY
     PUSHBUTTON      "Test", IDC_BTN_BOSS_KEY_TEST, 220, 103, 40, 14
     LTEXT           "Boss Key instantly hides ALL desktop windows. Press again to restore.", -1, 30, 115, 320, 8
-    
-    GROUPBOX        "Emergency Unlock (Lock Input Only)", -1, 20, 140, 340, 60
-    CONTROL         "Enable Emergency Unlock Hotkey", IDC_CHECK_UNLOCK_HOTKEY, "Button", BS_AUTOCHECKBOX | WS_CHILD | WS_VISIBLE | WS_TABSTOP, 30, 155, 150, 10
-    LTEXT           "Emergency Hotkey:", -1, 30, 175, 80, 8
-    EDITTEXT        IDC_EDIT_UNLOCK_HOTKEY, 110, 173, 100, 14, ES_READONLY
-    PUSHBUTTON      "Test", IDC_BTN_TEST_UNLOCK, 220, 173, 40, 14
-    LTEXT           "Emergency unlock bypasses current unlock method (Password/Timer only)", -1, 30, 185, 320, 8
 END
 
 // Appearance Tab Dialog

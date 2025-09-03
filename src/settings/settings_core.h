@@ -18,12 +18,6 @@ struct AppSettings {
     int hotkeyModifiers;   // Combination of MOD_CONTROL, MOD_SHIFT, etc.
     int hotkeyVirtualKey;  // Virtual key code
     
-    // Unlock Hotkey (optional emergency unlock)
-    bool unlockHotkeyEnabled;
-    std::string unlockHotkey;
-    int unlockHotkeyModifiers;
-    int unlockHotkeyVirtualKey;
-    
     // Password settings
     std::string unlockPassword;
     bool passwordEnabled;
@@ -62,10 +56,6 @@ struct AppSettings {
         lockHotkey = "Ctrl+Shift+L";
         hotkeyModifiers = MOD_CONTROL | MOD_SHIFT;
         hotkeyVirtualKey = 'L';
-        unlockHotkeyEnabled = true;
-        unlockHotkey = "Ctrl+Shift+U";
-        unlockHotkeyModifiers = MOD_CONTROL | MOD_SHIFT;
-        unlockHotkeyVirtualKey = 'U';
         unlockPassword = "10203040";
         passwordEnabled = true;
         timerDuration = 60;
@@ -92,10 +82,6 @@ struct AppSettings {
                lockHotkey == other.lockHotkey &&
                hotkeyModifiers == other.hotkeyModifiers &&
                hotkeyVirtualKey == other.hotkeyVirtualKey &&
-               unlockHotkeyEnabled == other.unlockHotkeyEnabled &&
-               unlockHotkey == other.unlockHotkey &&
-               unlockHotkeyModifiers == other.unlockHotkeyModifiers &&
-               unlockHotkeyVirtualKey == other.unlockHotkeyVirtualKey &&
                unlockPassword == other.unlockPassword &&
                passwordEnabled == other.passwordEnabled &&
                timerDuration == other.timerDuration &&

@@ -62,18 +62,6 @@ bool SettingsCore::LoadSettings(AppSettings& settings) {
         settings.hotkeyVirtualKey = value;
     }
     
-    if (ReadRegistryValue(hKey, "UnlockHotkeyEnabled", value)) {
-        settings.unlockHotkeyEnabled = (value != 0);
-    }
-    
-    if (ReadRegistryValue(hKey, "UnlockHotkeyModifiers", value)) {
-        settings.unlockHotkeyModifiers = value;
-    }
-    
-    if (ReadRegistryValue(hKey, "UnlockHotkeyVirtualKey", value)) {
-        settings.unlockHotkeyVirtualKey = value;
-    }
-    
     if (ReadRegistryValue(hKey, "PasswordEnabled", value)) {
         settings.passwordEnabled = (value != 0);
     }
@@ -153,9 +141,6 @@ bool SettingsCore::SaveSettings(const AppSettings& settings) {
     success &= WriteRegistryValue(hKey, "EnableFailsafe", settings.enableFailsafe ? 1 : 0);
     success &= WriteRegistryValue(hKey, "HotkeyModifiers", settings.hotkeyModifiers);
     success &= WriteRegistryValue(hKey, "HotkeyVirtualKey", settings.hotkeyVirtualKey);
-    success &= WriteRegistryValue(hKey, "UnlockHotkeyEnabled", settings.unlockHotkeyEnabled ? 1 : 0);
-    success &= WriteRegistryValue(hKey, "UnlockHotkeyModifiers", settings.unlockHotkeyModifiers);
-    success &= WriteRegistryValue(hKey, "UnlockHotkeyVirtualKey", settings.unlockHotkeyVirtualKey);
     success &= WriteRegistryValue(hKey, "PasswordEnabled", settings.passwordEnabled ? 1 : 0);
     success &= WriteRegistryValue(hKey, "TimerDuration", settings.timerDuration);
     success &= WriteRegistryValue(hKey, "TimerEnabled", settings.timerEnabled ? 1 : 0);

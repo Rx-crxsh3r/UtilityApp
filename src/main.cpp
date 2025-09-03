@@ -26,7 +26,6 @@ void RegisterHotkeyFromSettings(HWND hwnd);
 
 // Utility function to parse hotkey strings (e.g., "Ctrl+Alt+F12")
 bool ParseHotkeyString(const std::string& hotkeyStr, UINT& modifiers, UINT& virtualKey);
-#include "features/privacy/privacy_manager.h"
 #include "settings/password_manager.h"
 
 // Global variables
@@ -58,12 +57,12 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
             // Initialize productivity manager with main window
             g_productivityManager.SetMainWindow(hwnd);
             
-            // Enable productivity features based on settings
-            if (g_appSettings.quickLaunchEnabled) {
-                g_productivityManager.EnableQuickLaunch();
-            }
-            if (g_appSettings.usbAlertEnabled) {
-                g_productivityManager.EnableUSBAlert(hwnd);
+            // Initialize privacy manager with main window
+            g_privacyManager.SetMainWindow(hwnd);
+            
+            // Enable privacy features based on settings
+            if (g_appSettings.bossKeyEnabled) {
+                g_privacyManager.EnableBossKey(g_privacyManager.GetBossKeyModifiers(), g_privacyManager.GetBossKeyVirtualKey());
             }
             
             // Add the icon to the system tray on window creation
@@ -85,11 +84,6 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
                 ToggleInputLock(hwnd);
             } else if (wParam == HOTKEY_ID_UNLOCK) {
                 // Regular unlock (Ctrl+O)
-                if (IsInputLocked()) {
-                    ToggleInputLock(hwnd);
-                }
-            } else if (wParam == HOTKEY_ID_EMERGENCY_UNLOCK) {
-                // Emergency unlock - only works for Lock Input feature and bypasses unlock method
                 if (IsInputLocked()) {
                     ToggleInputLock(hwnd);
                 }
@@ -275,7 +269,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
             RemoveTrayIcon(hwnd);
             UnregisterHotKey(hwnd, HOTKEY_ID_LOCK);
             UnregisterHotKey(hwnd, HOTKEY_ID_UNLOCK);
-            UnregisterHotKey(hwnd, HOTKEY_ID_EMERGENCY_UNLOCK);
+            UnregisterHotKey(hwnd, 9001); // Boss key hotkey
             UninstallHook();
             CleanupCustomNotifications();
             CleanupAudio();
@@ -347,7 +341,6 @@ void RegisterHotkeyFromSettings(HWND hwnd) {
     // Unregister existing hotkeys first
     UnregisterHotKey(hwnd, HOTKEY_ID_LOCK);
     UnregisterHotKey(hwnd, HOTKEY_ID_UNLOCK);
-    UnregisterHotKey(hwnd, HOTKEY_ID_EMERGENCY_UNLOCK);
     
     // Register lock hotkey from settings
     if (!RegisterHotKey(hwnd, HOTKEY_ID_LOCK, g_appSettings.hotkeyModifiers, g_appSettings.hotkeyVirtualKey)) {
@@ -359,14 +352,6 @@ void RegisterHotkeyFromSettings(HWND hwnd) {
     if (!RegisterHotKey(hwnd, HOTKEY_ID_UNLOCK, MOD_CONTROL, 'O')) {
         MessageBoxA(hwnd, "Failed to register unlock hotkey!", "Error", MB_OK | MB_ICONERROR);
         ShowNotification(hwnd, NOTIFY_HOTKEY_ERROR, "Failed to register unlock hotkey");
-    }
-    
-    // Register emergency unlock hotkey if enabled (separate from regular unlock)
-    if (g_appSettings.unlockHotkeyEnabled) {
-        if (!RegisterHotKey(hwnd, HOTKEY_ID_EMERGENCY_UNLOCK, g_appSettings.unlockHotkeyModifiers, g_appSettings.unlockHotkeyVirtualKey)) {
-            MessageBoxA(hwnd, "Failed to register emergency unlock hotkey!", "Error", MB_OK | MB_ICONERROR);
-            ShowNotification(hwnd, NOTIFY_HOTKEY_ERROR, "Failed to register emergency unlock hotkey");
-        }
     }
 }
 

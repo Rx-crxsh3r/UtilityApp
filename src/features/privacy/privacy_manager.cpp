@@ -12,7 +12,7 @@ const char* PrivacyManager::STARTUP_KEY = "SOFTWARE\\Microsoft\\Windows\\Current
 const char* PrivacyManager::STARTUP_VALUE_NAME = "UtilityApp";
 
 PrivacyManager::PrivacyManager()
-    : bossKeyActive(false), targetWindow(NULL), originalExStyle(0),
+    : bossKeyActive(false), targetWindow(NULL), mainWindow(NULL), originalExStyle(0),
       isHiddenFromTaskbar(false), isHiddenFromAltTab(false),
       bossKeyModifiers(MOD_CONTROL | MOD_SHIFT), bossKeyVirtualKey('B') {
     LoadSettings();
@@ -101,8 +101,8 @@ bool PrivacyManager::EnableBossKey(UINT modifiers, UINT virtualKey) {
     bossKeyModifiers = modifiers;
     bossKeyVirtualKey = virtualKey;
     
-    // Register global hotkey for boss key
-    if (!RegisterHotKey(NULL, 9001, modifiers, virtualKey)) {
+    // Register global hotkey for boss key with main window
+    if (!RegisterHotKey(mainWindow, 9001, modifiers, virtualKey)) {
         return false;
     }
     
@@ -114,20 +114,20 @@ bool PrivacyManager::DisableBossKey() {
         DeactivateBossKey();
     }
     
-    UnregisterHotKey(NULL, 9001);
+    UnregisterHotKey(mainWindow, 9001);
     return true;
 }
 
 bool PrivacyManager::SetBossKeyHotkey(UINT modifiers, UINT virtualKey) {
     // Unregister old hotkey
-    UnregisterHotKey(NULL, 9001);
+    UnregisterHotKey(mainWindow, 9001);
     
     // Update the hotkey values
     bossKeyModifiers = modifiers;
     bossKeyVirtualKey = virtualKey;
     
     // Re-register with new hotkey
-    if (!RegisterHotKey(NULL, 9001, modifiers, virtualKey)) {
+    if (!RegisterHotKey(mainWindow, 9001, modifiers, virtualKey)) {
         return false;
     }
     

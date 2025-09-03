@@ -20,7 +20,6 @@
 // Hotkey IDs
 #define HOTKEY_ID_LOCK 1
 #define HOTKEY_ID_UNLOCK 2
-#define HOTKEY_ID_EMERGENCY_UNLOCK 3
 
 // Settings Dialog Resource IDs
 #define IDD_SETTINGS_DIALOG     200
@@ -92,9 +91,6 @@
 #define IDC_BTN_BOSS_KEY_TEST         304
 #define IDC_BTN_BOSS_KEY_CHANGE       305
 #define IDC_EDIT_HOTKEY_BOSS          306
-#define IDC_CHECK_UNLOCK_HOTKEY       307
-#define IDC_EDIT_UNLOCK_HOTKEY        308
-#define IDC_BTN_TEST_UNLOCK           309
 
 // Button Controls
 #define IDC_BTN_OK              260

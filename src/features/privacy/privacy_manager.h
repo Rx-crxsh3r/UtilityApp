@@ -39,6 +39,7 @@ private:
     
     // Window management
     HWND targetWindow;
+    HWND mainWindow; // Main application window for hotkey registration
     DWORD originalExStyle;
     bool isHiddenFromTaskbar;
     bool isHiddenFromAltTab;
@@ -65,6 +66,7 @@ public:
     bool ApplyPrivacySettings(HWND window, DWORD features);
     bool SetWindowPrivacy(HWND window, bool hideFromTaskbar);
     bool RestoreWindowPrivacy(HWND window);
+    void SetMainWindow(HWND window) { mainWindow = window; }
     
     // Boss key functionality
     bool EnableBossKey(UINT modifiers, UINT virtualKey);

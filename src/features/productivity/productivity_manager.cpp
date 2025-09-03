@@ -37,7 +37,7 @@ ProductivityManager::ProductivityManager()
     LoadSettings();
     
     // Initialize default quick launch apps with personalized hotkeys
-    QuickLaunchApp notepad = {"Notepad", "C:\\Windows\\notepad.exe", "", VK_F1, MOD_CONTROL, true};
+    QuickLaunchApp notepad = {"Notepad", "C:\\Windows\\System32\\notepad.exe", "", VK_F1, MOD_CONTROL, true};
     QuickLaunchApp calc = {"Calculator", "calc.exe", "", VK_F2, MOD_CONTROL, true};
     QuickLaunchApp explorer = {"File Explorer", "explorer.exe", "", VK_F3, MOD_CONTROL | MOD_ALT, true};
     

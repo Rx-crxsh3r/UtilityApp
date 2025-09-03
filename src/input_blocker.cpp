@@ -1,7 +1,5 @@
 // src/input_blocker.cpp
 
-// src/input_blocker.cpp
-
 #include "input_blocker.h"
 #include "notifications.h"
 #include "failsafe.h"
