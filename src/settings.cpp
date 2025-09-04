@@ -28,7 +28,7 @@ SettingsDialog::SettingsDialog(AppSettings* appSettings)
       isEditingHotkey(false), hTabLockInput(nullptr), hTabProductivity(nullptr),
       hTabPrivacy(nullptr), hTabAppearance(nullptr), isCapturingHotkey(false),
       ctrlPressed(false), shiftPressed(false), altPressed(false), winPressed(false),
-      hKeyboardHook(nullptr) {
+      hKeyboardHook(nullptr), lockInputTab(nullptr) {
     
     // Try to load from registry first, if that fails, use passed settings or defaults
     if (!g_settingsCore.LoadSettings(tempSettings)) {
@@ -45,6 +45,10 @@ SettingsDialog::SettingsDialog(AppSettings* appSettings)
     }
     
     originalSettings = tempSettings; // Store original for change detection
+
+    // Create the tab objects
+    lockInputTab = new LockInputTab(this, &tempSettings, &hasUnsavedChanges);
+    productivityTab = new ProductivityTab(this, &tempSettings, &hasUnsavedChanges);
 }
 
 SettingsDialog::~SettingsDialog() {
@@ -55,6 +59,18 @@ SettingsDialog::~SettingsDialog() {
     if (hTabProductivity) DestroyWindow(hTabProductivity);
     if (hTabPrivacy) DestroyWindow(hTabPrivacy);
     if (hTabAppearance) DestroyWindow(hTabAppearance);
+
+    // Clean up the lock input tab object
+    if (lockInputTab) {
+        delete lockInputTab;
+        lockInputTab = nullptr;
+    }
+
+    // Clean up the productivity tab object
+    if (productivityTab) {
+        delete productivityTab;
+        productivityTab = nullptr;
+    }
 }
 
 bool SettingsDialog::ShowDialog(HWND parent) {
@@ -206,7 +222,7 @@ void SettingsDialog::CreateTabDialogs() {
     // Create Lock & Input tab (modeless dialog)
     hTabLockInput = CreateDialogParam(GetModuleHandle(NULL),
                                      MAKEINTRESOURCE(IDD_TAB_LOCK_INPUT),
-                                     hMainDialog, LockInputTabProc, (LPARAM)this);
+                                     hMainDialog, LockInputTab::DialogProc, (LPARAM)lockInputTab);
     
     // Position the tab dialog
     if (hTabLockInput) {
@@ -218,7 +234,7 @@ void SettingsDialog::CreateTabDialogs() {
     // Create other tabs (for now, simple message dialogs)
     hTabProductivity = CreateDialogParam(GetModuleHandle(NULL),
                                         MAKEINTRESOURCE(IDD_TAB_PRODUCTIVITY),
-                                        hMainDialog, ProductivityTabProc, (LPARAM)this);
+                                        hMainDialog, ProductivityTab::DialogProc, (LPARAM)productivityTab);
     if (hTabProductivity) {
         SetWindowPos(hTabProductivity, NULL, rcTab.left, rcTab.top,
                     rcTab.right - rcTab.left, rcTab.bottom - rcTab.top,
@@ -287,13 +303,13 @@ void SettingsDialog::RefreshCurrentTabControls() {
     // This effectively re-initializes the tab with current tempSettings values
     switch (currentTabIndex) {
         case TAB_LOCK_INPUT:
-            if (hTabLockInput) {
-                LockInputTabProc(hTabLockInput, WM_INITDIALOG, 0, (LPARAM)this);
+            if (lockInputTab) {
+                lockInputTab->RefreshControls();
             }
             break;
         case TAB_PRODUCTIVITY:
-            if (hTabProductivity) {
-                ProductivityTabProc(hTabProductivity, WM_INITDIALOG, 0, (LPARAM)this);
+            if (productivityTab) {
+                productivityTab->RefreshControls();
             }
             break;
         case TAB_PRIVACY:
@@ -307,247 +323,6 @@ void SettingsDialog::RefreshCurrentTabControls() {
             }
             break;
     }
-}
-
-INT_PTR CALLBACK SettingsDialog::LockInputTabProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam) {
-    SettingsDialog* dialog = nullptr;
-    
-    if (message == WM_INITDIALOG) {
-        dialog = (SettingsDialog*)lParam;
-        SetWindowLongPtr(hDlg, GWLP_USERDATA, (LONG_PTR)dialog);
-    } else {
-        dialog = (SettingsDialog*)GetWindowLongPtr(hDlg, GWLP_USERDATA);
-    }
-    
-    if (!dialog) return FALSE;
-    
-    switch (message) {
-        case WM_INITDIALOG: {
-            // Initialize controls with current settings
-            CheckDlgButton(hDlg, IDC_CHECK_KEYBOARD, dialog->tempSettings.keyboardLockEnabled ? BST_CHECKED : BST_UNCHECKED);
-            CheckDlgButton(hDlg, IDC_CHECK_MOUSE, dialog->tempSettings.mouseLockEnabled ? BST_CHECKED : BST_UNCHECKED);
-            
-            // Set unlock method radio buttons (only Password and Timer now)
-            CheckRadioButton(hDlg, IDC_RADIO_PASSWORD, IDC_RADIO_TIMER, 
-                           IDC_RADIO_PASSWORD + dialog->tempSettings.unlockMethod);
-            
-            // Set whitelist checkbox separately (it's now an addon feature)
-            CheckDlgButton(hDlg, IDC_CHECK_WHITELIST, dialog->tempSettings.whitelistEnabled ? BST_CHECKED : BST_UNCHECKED);
-            EnableWindow(GetDlgItem(hDlg, IDC_BTN_WHITELIST_CFG), dialog->tempSettings.whitelistEnabled);
-            
-            // Set hotkey text
-            SetDlgItemTextA(hDlg, IDC_EDIT_HOTKEY_LOCK, dialog->tempSettings.lockHotkey.c_str());
-            
-            // Create warning controls dynamically
-            dialog->CreateWarningControls(hDlg);
-            
-            // Initialize warnings
-            dialog->UpdateWarnings();
-            
-            return TRUE;
-        }
-        
-        case WM_USER + 101: {
-            // Custom message from hotkey manager - update warnings
-            dialog->UpdateWarnings();
-            return TRUE;
-        }
-        
-        case WM_CTLCOLORSTATIC: {
-            // Make warning labels red
-            HWND hControl = (HWND)lParam;
-            int controlId = GetDlgCtrlID(hControl);
-            
-            if (controlId == IDC_WARNING_KEYBOARD_UNLOCK || 
-                controlId == IDC_WARNING_LOCKING_DISABLED || 
-                controlId == IDC_WARNING_SINGLE_KEY) {
-                
-                HDC hdc = (HDC)wParam;
-                SetTextColor(hdc, RGB(255, 0, 0)); // Red text
-                SetBkMode(hdc, TRANSPARENT);       // Transparent background
-                return (INT_PTR)GetStockObject(NULL_BRUSH);
-            }
-            break;
-        }
-        
-        case WM_COMMAND: {
-            switch (LOWORD(wParam)) {
-                case IDC_CHECK_KEYBOARD:
-                case IDC_CHECK_MOUSE: {
-                    bool oldKeyboard = dialog->tempSettings.keyboardLockEnabled;
-                    bool oldMouse = dialog->tempSettings.mouseLockEnabled;
-                    
-                    dialog->tempSettings.keyboardLockEnabled = IsDlgButtonChecked(hDlg, IDC_CHECK_KEYBOARD) == BST_CHECKED;
-                    dialog->tempSettings.mouseLockEnabled = IsDlgButtonChecked(hDlg, IDC_CHECK_MOUSE) == BST_CHECKED;
-                    
-                    // Check if this created a pending change
-                    if (oldKeyboard != dialog->tempSettings.keyboardLockEnabled || 
-                        oldMouse != dialog->tempSettings.mouseLockEnabled) {
-                        dialog->hasUnsavedChanges = true;
-                    }
-                    
-                    // Update warnings when lock type changes
-                    dialog->UpdateWarnings();
-                    break;
-                }
-                
-                case IDC_RADIO_PASSWORD:
-                case IDC_RADIO_TIMER: {
-                    int oldMethod = dialog->tempSettings.unlockMethod;
-                    dialog->tempSettings.unlockMethod = LOWORD(wParam) - IDC_RADIO_PASSWORD;
-                    
-                    if (oldMethod != dialog->tempSettings.unlockMethod) {
-                        dialog->hasUnsavedChanges = true;
-                    }
-                    
-                    // Update warnings when unlock method changes
-                    dialog->UpdateWarnings();
-                    break;
-                }
-                
-                case IDC_CHECK_WHITELIST: {
-                    bool oldValue = dialog->tempSettings.whitelistEnabled;
-                    dialog->tempSettings.whitelistEnabled = (IsDlgButtonChecked(hDlg, IDC_CHECK_WHITELIST) == BST_CHECKED);
-                    
-                    // Enable/disable whitelist configuration button
-                    EnableWindow(GetDlgItem(hDlg, IDC_BTN_WHITELIST_CFG), dialog->tempSettings.whitelistEnabled);
-                    
-                    if (oldValue != dialog->tempSettings.whitelistEnabled) {
-                        dialog->hasUnsavedChanges = true;
-                    }
-                    break;
-                }
-                
-                case IDC_BTN_PASSWORD_CFG:
-                    dialog->ShowPasswordConfig();
-                    break;
-                    
-                case IDC_BTN_TIMER_CFG:
-                    dialog->ShowTimerConfig();
-                    break;
-                    
-                case IDC_BTN_WHITELIST_CFG:
-                    dialog->ShowWhitelistConfig();
-                    break;
-                    
-                case IDC_EDIT_HOTKEY_LOCK:
-                    if (HIWORD(wParam) == EN_SETFOCUS) {
-                        // User clicked textbox - start capture using modular system
-                        HWND hEdit = GetDlgItem(hDlg, IDC_EDIT_HOTKEY_LOCK);
-                        HWND hHint = GetDlgItem(hDlg, IDC_LABEL_HOTKEY_HINT);
-                        g_hotkeyManager.StartCapture(hDlg, hEdit, hHint, dialog->tempSettings.lockHotkey);
-                    }
-                    break;
-            }
-            break;
-        }
-    }
-    
-    return FALSE;
-}
-
-INT_PTR CALLBACK SettingsDialog::ProductivityTabProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam) {
-    SettingsDialog* dialog = nullptr;
-    
-    if (message == WM_INITDIALOG) {
-        dialog = (SettingsDialog*)lParam;
-        SetWindowLongPtr(hDlg, GWLP_USERDATA, (LONG_PTR)dialog);
-    } else {
-        dialog = (SettingsDialog*)GetWindowLongPtr(hDlg, GWLP_USERDATA);
-    }
-    
-    if (!dialog) return FALSE;
-    
-    switch (message) {
-        case WM_INITDIALOG: {
-            // Initialize productivity controls from current settings
-            CheckDlgButton(hDlg, IDC_CHECK_USB_ALERT, dialog->tempSettings.usbAlertEnabled ? BST_CHECKED : BST_UNCHECKED);
-            CheckDlgButton(hDlg, IDC_CHECK_QUICK_LAUNCH, dialog->tempSettings.quickLaunchEnabled ? BST_CHECKED : BST_UNCHECKED);
-            CheckDlgButton(hDlg, IDC_CHECK_TIMER, dialog->tempSettings.workBreakTimerEnabled ? BST_CHECKED : BST_UNCHECKED);
-            
-            // Initialize boss key controls  
-            CheckDlgButton(hDlg, IDC_CHECK_BOSS_KEY, dialog->tempSettings.bossKeyEnabled ? BST_CHECKED : BST_UNCHECKED);
-            SetDlgItemTextA(hDlg, IDC_EDIT_HOTKEY_BOSS, dialog->tempSettings.bossKeyHotkey.c_str());
-            EnableWindow(GetDlgItem(hDlg, IDC_EDIT_HOTKEY_BOSS), dialog->tempSettings.bossKeyEnabled);
-            EnableWindow(GetDlgItem(hDlg, IDC_BTN_BOSS_KEY_TEST), dialog->tempSettings.bossKeyEnabled);
-            
-            return TRUE;
-        }
-        
-        case WM_COMMAND: {
-            switch (LOWORD(wParam)) {
-                case IDC_CHECK_USB_ALERT: {
-                    bool oldValue = dialog->tempSettings.usbAlertEnabled;
-                    dialog->tempSettings.usbAlertEnabled = (IsDlgButtonChecked(hDlg, IDC_CHECK_USB_ALERT) == BST_CHECKED);
-                    
-                    if (oldValue != dialog->tempSettings.usbAlertEnabled) {
-                        dialog->hasUnsavedChanges = true;
-                    }
-                    break;
-                }
-                
-                case IDC_CHECK_QUICK_LAUNCH: {
-                    bool oldValue = dialog->tempSettings.quickLaunchEnabled;
-                    dialog->tempSettings.quickLaunchEnabled = (IsDlgButtonChecked(hDlg, IDC_CHECK_QUICK_LAUNCH) == BST_CHECKED);
-                    
-                    if (oldValue != dialog->tempSettings.quickLaunchEnabled) {
-                        dialog->hasUnsavedChanges = true;
-                    }
-                    break;
-                }
-                
-                case IDC_CHECK_TIMER: {
-                    bool oldValue = dialog->tempSettings.workBreakTimerEnabled;
-                    dialog->tempSettings.workBreakTimerEnabled = (IsDlgButtonChecked(hDlg, IDC_CHECK_TIMER) == BST_CHECKED);
-                    
-                    if (oldValue != dialog->tempSettings.workBreakTimerEnabled) {
-                        dialog->hasUnsavedChanges = true;
-                    }
-                    break;
-                }
-                
-                case IDC_BTN_TIMER_CONFIG:
-                    MessageBoxA(hDlg, "Timer Configuration:\n\nWork Duration: 25 minutes\nShort Break: 5 minutes\nLong Break: 15 minutes\n\n(Advanced configuration coming in next update)", 
-                               "Pomodoro Timer Settings", MB_OK | MB_ICONINFORMATION);
-                    break;
-                    
-                case IDC_BTN_QUICK_LAUNCH_CONFIG:
-                    MessageBoxA(hDlg, "Quick Launch Configuration:\n\nDefault hotkeys:\nCtrl+F1 - Notepad\nCtrl+F2 - Calculator\nCtrl+Alt+F3 - File Explorer\n\n(Custom app configuration coming in next update)", 
-                               "Quick Launch Settings", MB_OK | MB_ICONINFORMATION);
-                    break;
-                    
-                case IDC_BTN_START_WORK_SESSION: {
-                    extern ProductivityManager g_productivityManager;
-                    if (dialog->tempSettings.workBreakTimerEnabled) {
-                        if (g_productivityManager.StartWorkSession()) {
-                            MessageBoxA(hDlg, "Work session started! You'll be notified when it's time for a break.\n\nTimer: 25 minutes work, 5 minute breaks\nLong break every 4 sessions", 
-                                       "Pomodoro Timer", MB_OK | MB_ICONINFORMATION);
-                        } else {
-                            MessageBoxA(hDlg, "Failed to start work session. Make sure the timer feature is enabled and applied.", 
-                                       "Error", MB_OK | MB_ICONERROR);
-                        }
-                    } else {
-                        MessageBoxA(hDlg, "Please enable the Work/Break Timer feature first, then click Apply.", 
-                                   "Timer Not Enabled", MB_OK | MB_ICONWARNING);
-                    }
-                    break;
-                }
-            }
-            break;
-        }
-        
-        case WM_DESTROY: {
-            // Clean up font resources
-            HFONT hFont = (HFONT)GetProp(hDlg, TEXT("DialogFont"));
-            if (hFont) {
-                DeleteObject(hFont);
-                RemoveProp(hDlg, TEXT("DialogFont"));
-            }
-            return TRUE;
-        }
-    }
-    
-    return FALSE;
 }
 
 INT_PTR CALLBACK SettingsDialog::PrivacyTabProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam) {
@@ -924,7 +699,6 @@ void SettingsDialog::CreateWarningControls(HWND hDlg) {
         SendMessage(hWarning3, WM_SETFONT, (WPARAM)hDialogFont, TRUE);
     }
 }
-
 // Global settings functions
 void InitializeSettings() {
     LoadSettingsFromFile();

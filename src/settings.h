@@ -9,6 +9,8 @@
 #include "settings/settings_core.h"
 #include "settings/hotkey_manager.h" 
 #include "settings/overlay_manager.h"
+#include "ui/lock_input_tab.h"
+#include "ui/productivity_tab.h"
 
 // Forward declarations
 class PasswordManager;
@@ -96,6 +98,10 @@ private:
     HWND hTabPrivacy;
     HWND hTabAppearance;
 
+    // Tab objects (OOP implementation)
+    LockInputTab* lockInputTab;
+    ProductivityTab* productivityTab;
+
 public:
     SettingsDialog(AppSettings* appSettings);
     ~SettingsDialog();
@@ -112,7 +118,6 @@ public:
     void RefreshCurrentTabControls();
     
     // Tab dialog procedures
-    static INT_PTR CALLBACK LockInputTabProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
     static INT_PTR CALLBACK ProductivityTabProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
     static INT_PTR CALLBACK PrivacyTabProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
     static INT_PTR CALLBACK AppearanceTabProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);

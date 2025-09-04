@@ -26,6 +26,8 @@ gcc -c src\audio_manager.cpp -o obj\audio_manager.o
 gcc -c src\custom_notifications.cpp -o obj\custom_notifications.o
 gcc -c src\notifications.cpp -o obj\notifications.o
 gcc -c src\overlay.cpp -o obj\overlay.o
+gcc -c src\ui\lock_input_tab.cpp -o obj\lock_input_tab.o
+gcc -c src\ui\productivity_tab.cpp -o obj\productivity_tab.o
 if %errorlevel% neq 0 (
     echo ERROR: Failed to compile core modules
     pause
@@ -67,6 +69,8 @@ gcc -o UtilityApp.exe ^
     obj\custom_notifications.o ^
     obj\notifications.o ^
     obj\overlay.o ^
+    obj\lock_input_tab.o ^
+    obj\productivity_tab.o ^
     obj\settings.o ^
     obj\settings_ui.o ^
     obj\settings_api.o ^
