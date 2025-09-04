@@ -1,8 +1,8 @@
-// src/settings/overlay_manager.cpp
+// src/features/appearance/overlay_manager.cpp
 // Overlay style management implementation
 
 #include "overlay_manager.h"
-#include "../resource.h"
+#include "../../resource.h"
 
 // Define radio button IDs if not already defined
 #ifndef IDC_RADIO_BLUR

@@ -1,4 +1,4 @@
-// src/settings/hotkey_manager.h
+// src/features/lock_input/hotkey_manager.h
 // Hotkey capture and management system
 
 #pragma once
@@ -32,6 +32,7 @@ public:
     // Validation
     bool ValidateHotkey(const std::string& hotkey);
     bool IsSingleKey(const std::string& hotkey);
+    bool IsHotkeyAvailable(UINT modifiers, UINT virtualKey);
     
     // Hook procedure
     static LRESULT CALLBACK HotkeyHookProc(int nCode, WPARAM wParam, LPARAM lParam);

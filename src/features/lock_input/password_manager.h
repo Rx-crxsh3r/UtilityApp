@@ -1,5 +1,5 @@
-// src/settings/password_manager.h
-// Password handling and validation module
+// src/features/lock_input/password_manager.h
+// Password management for secure unlock
 
 #pragma once
 #include <windows.h>

@@ -5,8 +5,8 @@
 #include "../notifications.h"
 #include "../overlay.h"
 #include "../custom_notifications.h"
-#include "overlay_manager.h"
-#include "hotkey_manager.h"
+#include "../features/appearance/overlay_manager.h"
+#include "../features/lock_input/hotkey_manager.h"
 #include "../features/privacy/privacy_manager.h"
 #include "../features/productivity/productivity_manager.h"
 #include <fstream>
@@ -165,6 +165,13 @@ bool SettingsCore::SaveSettings(const AppSettings& settings) {
     return success;
 }
 
+bool SettingsCore::ClearPersistentStorage() {
+    // Delete the entire registry key to simulate "no saved settings"
+    // This ensures that on next app startup, LoadSettings() will fail and load defaults
+    LONG result = RegDeleteKeyA(HKEY_CURRENT_USER, REGISTRY_KEY);
+    return (result == ERROR_SUCCESS || result == ERROR_FILE_NOT_FOUND);
+}
+
 bool SettingsCore::ApplySettings(const AppSettings& settings, HWND mainWindow) {
     if (!ValidateSettings(settings)) {
         return false;
@@ -172,7 +179,6 @@ bool SettingsCore::ApplySettings(const AppSettings& settings, HWND mainWindow) {
 
     bool success = true;
     
-    // Apply different categories of settings
     success &= ApplyHotkeySettings(settings);
     success &= ApplyPrivacySettings(settings, mainWindow);
     success &= ApplyProductivitySettings(settings, mainWindow);
@@ -186,18 +192,63 @@ bool SettingsCore::ApplySettings(const AppSettings& settings, HWND mainWindow) {
     return success;
 }
 
+bool SettingsCore::ApplySettings(const AppSettings& newSettings, const AppSettings& previousSettings, HWND mainWindow) {
+    if (!ValidateSettings(newSettings)) {
+        return false;
+    }
+
+    bool success = true;
+    bool anyChangesApplied = false;
+    
+    // Only apply changed categories for performance optimization
+    if (HasHotkeyChanges(newSettings, previousSettings)) {
+        success &= ApplyHotkeySettings(newSettings);
+        anyChangesApplied = true;
+    }
+    
+    if (HasPrivacyChanges(newSettings, previousSettings)) {
+        success &= ApplyPrivacySettings(newSettings, mainWindow);
+        anyChangesApplied = true;
+    }
+    
+    if (HasProductivityChanges(newSettings, previousSettings)) {
+        success &= ApplyProductivitySettings(newSettings, mainWindow);
+        anyChangesApplied = true;
+    }
+    
+    if (HasOverlayChanges(newSettings, previousSettings)) {
+        success &= ApplyOverlaySettings(newSettings);
+        anyChangesApplied = true;
+    }
+    
+    if (HasNotificationChanges(newSettings, previousSettings)) {
+        success &= ApplyNotificationSettings(newSettings);
+        anyChangesApplied = true;
+    }
+    
+    // Show notification only if changes were actually applied
+    if (success && mainWindow && anyChangesApplied) {
+        ShowNotification(mainWindow, NOTIFY_SETTINGS_APPLIED);
+    } else if (!anyChangesApplied && mainWindow) {
+        // Show a different message if no changes were detected
+        ShowNotification(mainWindow, NOTIFY_SETTINGS_APPLIED, "No changes detected");
+    }
+    
+    return success;
+}
+
 bool SettingsCore::ValidateSettings(const AppSettings& settings) {
     // Validate unlock method
     if (settings.unlockMethod < 0 || settings.unlockMethod > 2) {
         return false;
     }
     
-    // Validate hotkey modifiers
+    // Validate hotkey modifiers - must have at least one modifier for security
     if (settings.hotkeyModifiers == 0) {
-        return false; // Must have at least one modifier
+        return false; // Must have at least one modifier (Ctrl, Alt, Shift, Win)
     }
     
-    // Validate virtual key
+    // Validate virtual key - must be a valid Windows virtual key code
     if (settings.hotkeyVirtualKey < 0x08 || settings.hotkeyVirtualKey > 0xFF) {
         return false;
     }
@@ -221,6 +272,33 @@ void SettingsCore::ResetToDefaults(AppSettings& settings) {
 
 bool SettingsCore::HasChanges(const AppSettings& current, const AppSettings& original) {
     return current != original;
+}
+
+bool SettingsCore::HasHotkeyChanges(const AppSettings& current, const AppSettings& original) {
+    return current.lockHotkey != original.lockHotkey ||
+           current.hotkeyModifiers != original.hotkeyModifiers ||
+           current.hotkeyVirtualKey != original.hotkeyVirtualKey;
+}
+
+bool SettingsCore::HasPrivacyChanges(const AppSettings& current, const AppSettings& original) {
+    return current.hideFromTaskbar != original.hideFromTaskbar ||
+           current.startWithWindows != original.startWithWindows ||
+           current.bossKeyEnabled != original.bossKeyEnabled ||
+           current.bossKeyHotkey != original.bossKeyHotkey;
+}
+
+bool SettingsCore::HasProductivityChanges(const AppSettings& current, const AppSettings& original) {
+    return current.usbAlertEnabled != original.usbAlertEnabled ||
+           current.quickLaunchEnabled != original.quickLaunchEnabled ||
+           current.workBreakTimerEnabled != original.workBreakTimerEnabled;
+}
+
+bool SettingsCore::HasOverlayChanges(const AppSettings& current, const AppSettings& original) {
+    return current.overlayStyle != original.overlayStyle;
+}
+
+bool SettingsCore::HasNotificationChanges(const AppSettings& current, const AppSettings& original) {
+    return current.notificationStyle != original.notificationStyle;
 }
 
 bool SettingsCore::ExportToFile(const AppSettings& settings, const std::string& filepath) {
@@ -368,7 +446,9 @@ bool SettingsCore::ApplyPrivacySettings(const AppSettings& settings, HWND mainWi
     // Apply privacy settings using the dedicated privacy manager
     extern PrivacyManager g_privacyManager;
     
-    if (!mainWindow) return false;
+    if (!mainWindow) {
+        return false;
+    }
     
     // Apply window privacy settings
     bool success = g_privacyManager.SetWindowPrivacy(mainWindow, 
@@ -376,7 +456,8 @@ bool SettingsCore::ApplyPrivacySettings(const AppSettings& settings, HWND mainWi
     
     // Apply startup setting
     if (success) {
-        success &= g_privacyManager.SetStartWithWindows(settings.startWithWindows);
+        bool startupResult = g_privacyManager.SetStartWithWindows(settings.startWithWindows);
+        success &= startupResult;
     }
     
     // Apply boss key setting
@@ -385,11 +466,31 @@ bool SettingsCore::ApplyPrivacySettings(const AppSettings& settings, HWND mainWi
             // Parse boss key hotkey string to get modifiers and virtual key
             UINT modifiers, virtualKey;
             extern bool ParseHotkeyString(const std::string& hotkeyStr, UINT& modifiers, UINT& virtualKey);
+            extern HotkeyManager g_hotkeyManager;
+            
             if (ParseHotkeyString(settings.bossKeyHotkey, modifiers, virtualKey)) {
-                success &= g_privacyManager.EnableBossKey(modifiers, virtualKey);
+                // Check if the hotkey is available before trying to register
+                if (g_hotkeyManager.IsHotkeyAvailable(modifiers, virtualKey)) {
+                    bool bossKeyResult = g_privacyManager.EnableBossKey(modifiers, virtualKey);
+                    // Don't fail the entire operation if boss key registration fails
+                    // Boss key is secondary functionality - main settings should still apply
+                    // success &= bossKeyResult;  // Commented out to prevent failure
+                } else {
+                    // Hotkey is not available, try fallback
+                    if (g_hotkeyManager.IsHotkeyAvailable(MOD_CONTROL | MOD_ALT, VK_F11)) {
+                        bool bossKeyResult = g_privacyManager.EnableBossKey(MOD_CONTROL | MOD_ALT, VK_F11);
+                        // Don't fail the entire operation if boss key registration fails
+                        // success &= bossKeyResult;  // Commented out to prevent failure
+                    }
+                    // If both primary and fallback fail, just continue without boss key
+                }
             } else {
                 // Fallback to default if parsing fails (Ctrl+Alt+F11)
-                success &= g_privacyManager.EnableBossKey(MOD_CONTROL | MOD_ALT, VK_F11);
+                if (g_hotkeyManager.IsHotkeyAvailable(MOD_CONTROL | MOD_ALT, VK_F11)) {
+                    bool bossKeyResult = g_privacyManager.EnableBossKey(MOD_CONTROL | MOD_ALT, VK_F11);
+                    // Don't fail the entire operation if boss key registration fails
+                    // success &= bossKeyResult;  // Commented out to prevent failure
+                }
             }
         } else {
             g_privacyManager.DisableBossKey();

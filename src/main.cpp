@@ -26,7 +26,7 @@ void RegisterHotkeyFromSettings(HWND hwnd);
 
 // Utility function to parse hotkey strings (e.g., "Ctrl+Alt+F12")
 bool ParseHotkeyString(const std::string& hotkeyStr, UINT& modifiers, UINT& virtualKey);
-#include "settings/password_manager.h"
+#include "features/lock_input/password_manager.h"
 
 // Global variables
 extern const char CLASS_NAME[] = "UtilityAppClass";
@@ -45,12 +45,15 @@ void RegisterHotkeyFromSettings(HWND hwnd);
 LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     switch (uMsg) {
         case WM_CREATE: {
-            // Initialize settings system
+            // Initialize settings system FIRST - before any notifications
             InitializeSettings();
-            // Initialize custom notification system
+            
+            // Initialize custom notification system AFTER settings are loaded
             InitializeCustomNotifications();
+            
             // Initialize audio system
             InitializeAudio();
+            
             // Initialize input blocker with window handle for performance
             InitializeInputBlocker(hwnd);
             
@@ -67,7 +70,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
             
             // Add the icon to the system tray on window creation
             AddTrayIcon(hwnd);
-            // Show startup notification
+            
+            // Show startup notification (settings are now loaded)
             ShowNotification(hwnd, NOTIFY_APP_START);
             
             // Register hotkeys based on settings
@@ -230,24 +234,29 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
             const char* title = "UtilityApp";
             const char* message = deferredMessage ? deferredMessage : "Notification";
             DWORD iconType = NIIF_INFO;
+            NotificationLevel level = NOTIFY_LEVEL_INFO;
             
-            // Set appropriate icon based on type
+            // Set appropriate icon and level based on type
             switch (type) {
                 case NOTIFY_INPUT_LOCKED:
                 case NOTIFY_FAILSAFE_TRIGGERED:
                     iconType = NIIF_WARNING;
+                    level = NOTIFY_LEVEL_WARNING;
                     break;
                 case NOTIFY_HOTKEY_ERROR:
+                case NOTIFY_SETTINGS_ERROR:
                     iconType = NIIF_ERROR;
+                    level = NOTIFY_LEVEL_ERROR;
                     break;
                 default:
                     iconType = NIIF_INFO;
+                    level = NOTIFY_LEVEL_INFO;
                     break;
             }
             
             // Display notification now that we're out of the hook context
             if (g_customNotifications) {
-                g_customNotifications->ShowNotification(title, message);
+                g_customNotifications->ShowNotification(title, message, 4000, level);
             }
             
             // Clean up dynamically allocated message

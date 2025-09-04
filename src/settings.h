@@ -7,12 +7,13 @@
 
 // Include modular components (settings_core.h contains AppSettings)
 #include "settings/settings_core.h"
-#include "settings/hotkey_manager.h" 
-#include "settings/overlay_manager.h"
-#include "ui/lock_input_tab.h"
+#include "features/lock_input/hotkey_manager.h" 
+#include "features/appearance/overlay_manager.h"
+#include "features/lock_input/lock_input_tab.h"
 #include "ui/productivity_tab.h"
 #include "ui/privacy_tab.h"
-#include "ui/appearance_tab.h"
+#include "features/appearance/appearance_tab.h"
+#include "features/data_management/data_tab.h"
 
 // Forward declarations
 class PasswordManager;
@@ -27,6 +28,7 @@ class TimerManager;
 #define IDD_TAB_PRODUCTIVITY    211
 #define IDD_TAB_PRIVACY         212
 #define IDD_TAB_APPEARANCE      213
+#define IDD_TAB_DATA            214
 
 // Lock & Input Tab Controls
 #define IDC_CHECK_KEYBOARD      220
@@ -40,16 +42,7 @@ class TimerManager;
 #define IDC_BTN_PASSWORD_CFG    226
 #define IDC_BTN_TIMER_CFG       227
 #define IDC_BTN_WHITELIST_CFG   228
-#define IDC_BTN_SAVE_HOTKEY     229
-#define IDC_BTN_CANCEL_HOTKEY   230
-#define IDC_LABEL_HOTKEY_HINT   231
-#define IDC_LABEL_HOTKEY_WARNING 232
-// IDC_CHECK_UNLOCK_HOTKEY is now defined in resource.h as 307 (Privacy tab)
-// IDC_EDIT_UNLOCK_HOTKEY is now defined in resource.h as 308 (Privacy tab)
-#define IDC_LABEL_UNLOCK_HOTKEY 235
-// IDC_BTN_TEST_UNLOCK is now defined in resource.h as 309 (Privacy tab)
-
-// Note: Productivity and Privacy tab control IDs are defined in resource.h
+// Note: All control IDs are now defined in resource.h
 
 // Appearance Tab Controls
 #define IDC_RADIO_BLUR          240
@@ -57,9 +50,6 @@ class TimerManager;
 #define IDC_RADIO_BLACK         242
 #define IDC_RADIO_NONE          243
 #define IDC_LABEL_OVERLAY_DESC  244
-
-// Placeholder Controls for Coming Soon tabs
-#define IDC_LABEL_COMING_SOON   250
 
 // Button Controls
 #define IDC_BTN_OK              260
@@ -71,7 +61,8 @@ enum SettingsTab {
     TAB_LOCK_INPUT = 0,
     TAB_PRODUCTIVITY = 1,
     TAB_PRIVACY = 2,
-    TAB_APPEARANCE = 3
+    TAB_APPEARANCE = 3,
+    TAB_DATA = 4
 };
 
 // Settings Dialog Class
@@ -83,7 +74,6 @@ private:
     int currentTabIndex;
     AppSettings* settings;
     AppSettings tempSettings; // For unsaved changes
-    AppSettings originalSettings; // For smart change detection
     bool hasUnsavedChanges;
     bool isEditingHotkey;
     
@@ -99,12 +89,17 @@ private:
     HWND hTabProductivity;
     HWND hTabPrivacy;
     HWND hTabAppearance;
+    HWND hTabData;
 
     // Tab objects (OOP implementation)
     LockInputTab* lockInputTab;
     ProductivityTab* productivityTab;
     PrivacyTab* privacyTab;
     AppearanceTab* appearanceTab;
+    DataTab* dataTab;
+    
+    // Lazy loading support
+    RECT tabRect;
 
 public:
     SettingsDialog(AppSettings* appSettings);
@@ -117,9 +112,12 @@ public:
     // Tab management
     void SwitchTab(int tabIndex);
     void CreateTabDialogs();
+    void CreateSingleTab(int tabIndex);
     void ShowTabDialog(HWND hTab);
     void HideCurrentTab();
     void RefreshCurrentTabControls();
+    void RefreshAllTabs();
+    void UpdateButtonStates();
     
     // Tab dialog procedures
     static INT_PTR CALLBACK ProductivityTabProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
@@ -150,8 +148,11 @@ public:
     void ShowWhitelistConfig();
 };
 
-// Global settings instance
-extern AppSettings g_appSettings;
+// Global settings instances
+extern AppSettings g_appSettings;          // Current runtime settings (what the app is using)
+extern AppSettings g_persistentSettings;   // Last saved settings (from registry/file)
+extern AppSettings g_tempSettings;         // Current session temporary settings (UI state)
+extern bool g_settingsLoaded;
 
 // Global main window handle (for hotkey registration)
 extern HWND g_mainWindow;

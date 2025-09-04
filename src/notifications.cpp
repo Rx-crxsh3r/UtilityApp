@@ -6,7 +6,21 @@
 #include "settings.h"
 #include <shellapi.h>
 
+// External flag to check if settings are loaded
+extern bool g_settingsLoaded;
+
 void ShowNotification(HWND hwnd, NotificationType type, const char* customMessage) {
+    // If settings aren't loaded yet, defer the notification or use safe defaults
+    if (!g_settingsLoaded) {
+        // Use custom notifications as safe default before settings are loaded
+        extern CustomNotificationSystem* g_customNotifications;
+        if (g_customNotifications) {
+            const char* message = customMessage ? customMessage : "Application notification";
+            g_customNotifications->ShowNotification("UtilityApp", message, 4000, NOTIFY_LEVEL_INFO);
+        }
+        return;
+    }
+    
     // Check notification style setting from appearance tab
     if (g_appSettings.notificationStyle == 3) { // NOTIFY_STYLE_NONE
         return; // No notifications
@@ -85,6 +99,10 @@ void ShowNotification(HWND hwnd, NotificationType type, const char* customMessag
             case NOTIFY_SETTINGS_APPLIED:
                 message = "All settings have been successfully applied";
                 iconType = NIIF_INFO;
+                break;
+            case NOTIFY_SETTINGS_ERROR:
+                message = "Settings operation failed";
+                iconType = NIIF_ERROR;
                 break;
             default:
                 message = "Unknown notification";

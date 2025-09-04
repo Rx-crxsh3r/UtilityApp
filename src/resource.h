@@ -30,6 +30,7 @@
 #define IDD_TAB_PRODUCTIVITY    211
 #define IDD_TAB_PRIVACY         212
 #define IDD_TAB_APPEARANCE      213
+#define IDD_TAB_DATA            214
 
 // Lock & Input Tab Controls (Basic ones only - extended ones in settings.h)
 #define IDC_CHECK_KEYBOARD      220
@@ -38,11 +39,18 @@
 #define IDC_RADIO_TIMER         223
 #define IDC_CHECK_WHITELIST     224
 #define IDC_EDIT_HOTKEY_LOCK    225
+#define IDC_BTN_PASSWORD_CFG    226
+#define IDC_BTN_TIMER_CFG       227
+#define IDC_BTN_WHITELIST_CFG   228
+#define IDC_BTN_SAVE_HOTKEY     229
+#define IDC_BTN_CANCEL_HOTKEY   230
+#define IDC_LABEL_HOTKEY_HINT   231
 
 // Warning Labels
 #define IDC_WARNING_KEYBOARD_UNLOCK     280
 #define IDC_WARNING_LOCKING_DISABLED    281
 #define IDC_WARNING_SINGLE_KEY          282
+#define IDC_LABEL_HOTKEY_WARNING        283
 
 // Timer Tab Controls
 #define IDC_RADIO_TIMER_DISABLED    252
@@ -75,7 +83,14 @@
 #define IDC_LABEL_NOTIFY_DESC             249
 
 // Placeholder Controls for Coming Soon tabs
-#define IDC_LABEL_COMING_SOON   250
+#define IDC_LABEL_COMING_SOON   249
+
+// Data Tab Controls  
+#define IDC_BTN_SAVE_SETTINGS   250
+#define IDC_BTN_RESET_SETTINGS  251
+#define IDC_BTN_LOAD_SETTINGS   252
+#define IDC_BTN_EXPORT_SETTINGS 253
+#define IDC_LABEL_DATA_DESC     254
 
 // Productivity Tab Controls
 #define IDC_CHECK_USB_ALERT           290

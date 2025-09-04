@@ -1,9 +1,9 @@
-// src/settings/timer_manager.cpp
+// src/features/lock_input/timer_manager.cpp
 // Timer configuration and management implementation
 
 #include "timer_manager.h"
-#include "../resource.h"
-#include "../notifications.h"
+#include "../../resource.h"
+#include "../../notifications.h"
 #include <windows.h>
 #include <string>
 #include <sstream>

@@ -78,12 +78,16 @@ void CustomNotificationSystem::CreateNotificationWindow() {
     SetLayeredWindowAttributes(hNotifyWindow, 0, 255, LWA_ALPHA);
 }
 
-void CustomNotificationSystem::ShowNotification(const std::string& title, const std::string& message, DWORD duration) {
+void CustomNotificationSystem::ShowNotification(const std::string& title, const std::string& message, DWORD duration, NotificationLevel level) {
     if (currentStyle == NOTIFY_STYLE_NONE) return;
     
     if (currentStyle == NOTIFY_STYLE_WINDOWS) {
         // Use Windows native notifications
-        MessageBox(g_mainWindow, message.c_str(), title.c_str(), MB_OK | MB_ICONINFORMATION | MB_TOPMOST);
+        UINT iconType = MB_ICONINFORMATION;
+        if (level == NOTIFY_LEVEL_WARNING) iconType = MB_ICONWARNING;
+        else if (level == NOTIFY_LEVEL_ERROR) iconType = MB_ICONERROR;
+        
+        MessageBox(g_mainWindow, message.c_str(), title.c_str(), MB_OK | iconType | MB_TOPMOST);
         return;
     }
     
@@ -92,12 +96,19 @@ void CustomNotificationSystem::ShowNotification(const std::string& title, const 
         extern void ShowBalloonTip(HWND hwnd, const char* title, const char* message, DWORD iconType);
         extern HWND g_mainWindow;
         DWORD iconType = NIIF_INFO;
+        if (level == NOTIFY_LEVEL_WARNING) iconType = NIIF_WARNING;
+        else if (level == NOTIFY_LEVEL_ERROR) iconType = NIIF_ERROR;
         ShowBalloonTip(g_mainWindow, title.c_str(), message.c_str(), iconType);
         return;
     }
     
     // NOTIFY_STYLE_CUSTOM - use custom notification system
-    auto notif = std::make_unique<CustomNotification>(title, message, duration);
+    auto notif = std::make_unique<CustomNotification>(title, message, duration, level);
+    
+    // Play sound for error notifications only
+    if (level == NOTIFY_LEVEL_ERROR) {
+        PlaySound(TEXT("resources\\notif.wav"), NULL, SND_FILENAME | SND_ASYNC);
+    }
     
     // Position new notification
     int screenWidth = GetSystemMetrics(SM_CXSCREEN);
@@ -191,12 +202,27 @@ void CustomNotificationSystem::DrawNotification(HDC hdc, CustomNotification* not
     HBITMAP memBitmap = CreateCompatibleBitmap(hdc, NOTIFY_WIDTH, NOTIFY_HEIGHT);
     HBITMAP oldBitmap = (HBITMAP)SelectObject(memDC, memBitmap);
     
+    // Choose colors based on notification level
+    COLORREF bgColor = BG_COLOR;
+    COLORREF accentColor = ACCENT_COLOR;
+    COLORREF borderColor = RGB(40, 40, 40);
+    
+    if (notif->level == NOTIFY_LEVEL_ERROR) {
+        bgColor = ERROR_BG_COLOR;
+        accentColor = ERROR_ACCENT_COLOR;
+        borderColor = ERROR_BORDER_COLOR;
+    }
+    
+    // Create brushes and pens for this notification
+    HBRUSH currentBgBrush = CreateSolidBrush(bgColor);
+    HPEN currentBorderPen = CreatePen(PS_SOLID, 1, borderColor);
+    
     // Draw background with rounded corners
     RECT rect = {0, 0, NOTIFY_WIDTH, NOTIFY_HEIGHT};
-    FillRect(memDC, &rect, hBackgroundBrush);
+    FillRect(memDC, &rect, currentBgBrush);
     
     // Draw subtle border
-    SelectObject(memDC, hBorderPen);
+    SelectObject(memDC, currentBorderPen);
     SelectObject(memDC, GetStockObject(NULL_BRUSH));
     RoundRect(memDC, 0, 0, NOTIFY_WIDTH, NOTIFY_HEIGHT, 8, 8);
     
@@ -221,7 +247,7 @@ void CustomNotificationSystem::DrawNotification(HDC hdc, CustomNotification* not
         float progress = (float)elapsed / notif->duration;
         int lineWidth = (int)(NOTIFY_WIDTH * progress);
         
-        HPEN accentPen = CreatePen(PS_SOLID, 2, ACCENT_COLOR);
+        HPEN accentPen = CreatePen(PS_SOLID, 2, accentColor);
         HPEN oldPen = (HPEN)SelectObject(memDC, accentPen);
         
         MoveToEx(memDC, 0, NOTIFY_HEIGHT - 2, nullptr);
@@ -237,6 +263,10 @@ void CustomNotificationSystem::DrawNotification(HDC hdc, CustomNotification* not
     
     // Cleanup
     SelectObject(memDC, oldBitmap);
+    DeleteObject(memBitmap);
+    DeleteObject(memDC);
+    DeleteObject(currentBgBrush);
+    DeleteObject(currentBorderPen);
     DeleteObject(memBitmap);
     DeleteDC(memDC);
 }
@@ -328,9 +358,9 @@ void CustomNotificationSystem::Cleanup() {
 }
 
 // Helper functions
-void ShowCustomNotification(const std::string& title, const std::string& message) {
+void ShowCustomNotification(const std::string& title, const std::string& message, NotificationLevel level) {
     if (g_customNotifications) {
-        g_customNotifications->ShowNotification(title, message);
+        g_customNotifications->ShowNotification(title, message, 4000, level);
     }
 }
 

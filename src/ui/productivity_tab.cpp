@@ -96,6 +96,10 @@ void ProductivityTab::HandleControlCommand(WPARAM wParam, LPARAM lParam) {
 
             if (oldValue != tempSettings->usbAlertEnabled) {
                 *hasUnsavedChanges = true;
+                // Notify parent dialog to update button states
+                if (parentDialog) {
+                    parentDialog->UpdateButtonStates();
+                }
             }
             break;
         }
@@ -106,6 +110,10 @@ void ProductivityTab::HandleControlCommand(WPARAM wParam, LPARAM lParam) {
 
             if (oldValue != tempSettings->quickLaunchEnabled) {
                 *hasUnsavedChanges = true;
+                // Notify parent dialog to update button states
+                if (parentDialog) {
+                    parentDialog->UpdateButtonStates();
+                }
             }
             break;
         }
@@ -116,6 +124,10 @@ void ProductivityTab::HandleControlCommand(WPARAM wParam, LPARAM lParam) {
 
             if (oldValue != tempSettings->workBreakTimerEnabled) {
                 *hasUnsavedChanges = true;
+                // Notify parent dialog to update button states
+                if (parentDialog) {
+                    parentDialog->UpdateButtonStates();
+                }
             }
             break;
         }

@@ -63,14 +63,14 @@ struct AppSettings {
         whitelistedKeys = "Esc";
         whitelistEnabled = false;
         overlayStyle = 1; // Default to dim overlay
-        notificationStyle = 2; // Default to windows notifications
+        notificationStyle = 0; // Default to custom notifications
         hideFromTaskbar = true;
         startWithWindows = false;
         usbAlertEnabled = false; // Off by default
-        quickLaunchEnabled = true; // Enable by default for better user experience
+        quickLaunchEnabled = false; // Off by default (optimized)
         workBreakTimerEnabled = false; // Off by default
         bossKeyEnabled = true; // Enable by default for better user experience
-        bossKeyHotkey = "Ctrl+Shift+B";
+        bossKeyHotkey = "Ctrl+Alt+F12";
     }
     
     // Comparison operators
@@ -115,7 +115,9 @@ public:
     // Core operations
     bool LoadSettings(AppSettings& settings);
     bool SaveSettings(const AppSettings& settings);
+    bool ClearPersistentStorage(); // Delete all registry entries (for reset to defaults)
     bool ApplySettings(const AppSettings& settings, HWND mainWindow = NULL);
+    bool ApplySettings(const AppSettings& newSettings, const AppSettings& previousSettings, HWND mainWindow = NULL);
     
     // Validation
     bool ValidateSettings(const AppSettings& settings);
@@ -123,6 +125,11 @@ public:
     
     // Change detection
     bool HasChanges(const AppSettings& current, const AppSettings& original);
+    bool HasHotkeyChanges(const AppSettings& current, const AppSettings& original);
+    bool HasPrivacyChanges(const AppSettings& current, const AppSettings& original);
+    bool HasProductivityChanges(const AppSettings& current, const AppSettings& original);
+    bool HasOverlayChanges(const AppSettings& current, const AppSettings& original);
+    bool HasNotificationChanges(const AppSettings& current, const AppSettings& original);
     
     // Import/Export
     bool ExportToFile(const AppSettings& settings, const std::string& filepath);

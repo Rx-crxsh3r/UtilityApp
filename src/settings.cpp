@@ -7,13 +7,17 @@
 #include "features/privacy/privacy_manager.h"
 #include "features/productivity/productivity_manager.h"
 #include "custom_notifications.h"
+#include "notifications.h"
 #include <commctrl.h>
 #include <fstream>
 #include <sstream>
 #include <map>
 
-// Global settings instance
-AppSettings g_appSettings;
+// Global settings instances
+AppSettings g_appSettings;        // Current runtime settings (what the app is using)
+AppSettings g_persistentSettings; // Last saved settings (from registry/file)  
+AppSettings g_tempSettings;       // Current session temporary settings (UI state)
+bool g_settingsLoaded = false;
 
 // Global manager instances
 extern ProductivityManager g_productivityManager;
@@ -26,31 +30,25 @@ SettingsDialog::SettingsDialog(AppSettings* appSettings)
     : hMainDialog(nullptr), hTabControl(nullptr), hCurrentTab(nullptr),
       currentTabIndex(0), settings(appSettings), hasUnsavedChanges(false),
       isEditingHotkey(false), hTabLockInput(nullptr), hTabProductivity(nullptr),
-      hTabPrivacy(nullptr), hTabAppearance(nullptr), isCapturingHotkey(false),
+      hTabPrivacy(nullptr), hTabAppearance(nullptr), hTabData(nullptr), isCapturingHotkey(false),
       ctrlPressed(false), shiftPressed(false), altPressed(false), winPressed(false),
-      hKeyboardHook(nullptr), lockInputTab(nullptr), productivityTab(nullptr), privacyTab(nullptr), appearanceTab(nullptr) {
+      hKeyboardHook(nullptr), lockInputTab(nullptr), productivityTab(nullptr), privacyTab(nullptr), appearanceTab(nullptr), dataTab(nullptr) {
     
-    // Try to load from registry first, if that fails, use passed settings or defaults
-    if (!g_settingsCore.LoadSettings(tempSettings)) {
-        if (appSettings) {
-            tempSettings = *appSettings; // Use passed settings
-        } else {
-            tempSettings = AppSettings(); // Use defaults
-        }
-    }
+    // Initialize with current runtime settings
+    // tempSettings represents the UI state (current session changes)
+    tempSettings = g_appSettings;
     
-    // Update the passed settings with loaded values
+    // Update the passed pointer to current runtime settings
     if (appSettings) {
-        *appSettings = tempSettings;
+        *appSettings = g_appSettings;
     }
-    
-    originalSettings = tempSettings; // Store original for change detection
 
     // Create the tab objects
     lockInputTab = new LockInputTab(this, &tempSettings, &hasUnsavedChanges);
     productivityTab = new ProductivityTab(this, &tempSettings, &hasUnsavedChanges);
     privacyTab = new PrivacyTab(this, &tempSettings, &hasUnsavedChanges);
     appearanceTab = new AppearanceTab(this, &tempSettings, &hasUnsavedChanges);
+    dataTab = new DataTab(this, &tempSettings, &hasUnsavedChanges);
 }
 
 SettingsDialog::~SettingsDialog() {
@@ -61,6 +59,7 @@ SettingsDialog::~SettingsDialog() {
     if (hTabProductivity) DestroyWindow(hTabProductivity);
     if (hTabPrivacy) DestroyWindow(hTabPrivacy);
     if (hTabAppearance) DestroyWindow(hTabAppearance);
+    if (hTabData) DestroyWindow(hTabData);
 
     // Clean up the lock input tab object
     if (lockInputTab) {
@@ -84,6 +83,12 @@ SettingsDialog::~SettingsDialog() {
     if (appearanceTab) {
         delete appearanceTab;
         appearanceTab = nullptr;
+    }
+
+    // Clean up the data tab object
+    if (dataTab) {
+        delete dataTab;
+        dataTab = nullptr;
     }
 }
 
@@ -133,9 +138,15 @@ INT_PTR CALLBACK SettingsDialog::DialogProc(HWND hDlg, UINT message, WPARAM wPar
             tie.pszText = (LPSTR)"Appearance";
             TabCtrl_InsertItem(dialog->hTabControl, 3, &tie);
             
+            tie.pszText = (LPSTR)"Data";
+            TabCtrl_InsertItem(dialog->hTabControl, 4, &tie);
+            
             // Create tab dialogs
             dialog->CreateTabDialogs();
-            dialog->SwitchTab(0); // Show first tab
+            
+            // Set the tab control to show the first tab and switch to it
+            TabCtrl_SetCurSel(dialog->hTabControl, 0);
+            dialog->SwitchTab(0); // Show first tab (Lock & Input)
             dialog->LoadSettings();
             
             return TRUE;
@@ -146,22 +157,23 @@ INT_PTR CALLBACK SettingsDialog::DialogProc(HWND hDlg, UINT message, WPARAM wPar
             if (pnmh->idFrom == IDC_TAB_CONTROL && pnmh->code == TCN_SELCHANGE) {
                 int newTab = TabCtrl_GetCurSel(dialog->hTabControl);
                 if (newTab != dialog->currentTabIndex) {
-                    if (dialog->HasPendingChanges()) {
+                    // Check if there are unapplied changes (UI vs runtime)
+                    dialog->ReadUIValues(); // Get current UI state
+                    if (g_settingsCore.HasChanges(dialog->tempSettings, g_appSettings)) {
                         int result = MessageBoxA(dialog->hMainDialog,
-                                               "You have unsaved changes. Do you want to save them?",
-                                               "Unsaved Changes", 
+                                               "You have unapplied changes. Do you want to apply them?",
+                                               "Unapplied Changes", 
                                                MB_YESNOCANCEL | MB_ICONQUESTION);
                         switch (result) {
                             case IDYES:
-                                dialog->SaveSettings();
-                                dialog->ApplySettings();
-                                dialog->hasUnsavedChanges = false;
-                                dialog->originalSettings = dialog->tempSettings;
+                                dialog->ApplySettings(); // Apply to runtime (like Apply button)
                                 break;
                             case IDNO:
-                                dialog->tempSettings = dialog->originalSettings; // Revert changes
-                                dialog->hasUnsavedChanges = false;
-                                dialog->RefreshCurrentTabControls(); // Refresh UI to show reverted values
+                                // Revert to current runtime settings
+                                dialog->tempSettings = g_appSettings;
+                                dialog->hasUnsavedChanges = g_settingsCore.HasChanges(g_appSettings, g_persistentSettings);
+                                dialog->RefreshCurrentTabControls(); // Refresh UI to show runtime values
+                                dialog->UpdateButtonStates(); // Update button states after revert
                                 break;
                             case IDCANCEL:
                                 // Revert tab selection
@@ -178,7 +190,13 @@ INT_PTR CALLBACK SettingsDialog::DialogProc(HWND hDlg, UINT message, WPARAM wPar
         case WM_COMMAND: {
             switch (LOWORD(wParam)) {
                 case IDC_BTN_OK:
-                    // OK = Discard changes (with confirmation if pending)
+                    // OK = Save changes permanently and close
+                    dialog->SaveSettings(); // This handles both save and apply
+                    EndDialog(hDlg, IDOK);
+                    return TRUE;
+                    
+                case IDC_BTN_CANCEL:
+                    // Cancel = Discard changes and close (with confirmation if pending)
                     if (dialog->HasPendingChanges()) {
                         int result = MessageBoxA(dialog->hMainDialog,
                                                 "You have unsaved changes. Are you sure you want to discard them?",
@@ -187,21 +205,16 @@ INT_PTR CALLBACK SettingsDialog::DialogProc(HWND hDlg, UINT message, WPARAM wPar
                         if (result == IDNO) {
                             return TRUE; // Don't close
                         }
+                        // Note: We do NOT change g_appSettings here
+                        // Runtime settings remain as they are, only dialog settings are discarded
                     }
-                    EndDialog(hDlg, IDOK);
-                    return TRUE;
-                    
-                case IDC_BTN_CANCEL:
-                    // Cancel = Close directly without confirmation
                     EndDialog(hDlg, IDCANCEL);
                     return TRUE;
                     
                 case IDC_BTN_APPLY:
-                    // Apply = Save all changes
-                    dialog->SaveSettings();
+                    // Apply = Apply changes temporarily (do not save to registry)
                     dialog->ApplySettings();
-                    dialog->hasUnsavedChanges = false;
-                    dialog->originalSettings = dialog->tempSettings; // Update baseline
+                    dialog->UpdateButtonStates();
                     return TRUE;
             }
             break;
@@ -216,6 +229,8 @@ INT_PTR CALLBACK SettingsDialog::DialogProc(HWND hDlg, UINT message, WPARAM wPar
                 if (result == IDNO) {
                     return TRUE; // Don't close
                 }
+                // Note: We do NOT change g_appSettings here
+                // Runtime settings remain as they are, only dialog settings are discarded
             }
             EndDialog(hDlg, IDCANCEL);
             return TRUE;
@@ -233,44 +248,70 @@ void SettingsDialog::CreateTabDialogs() {
     // Adjust for tab control borders
     TabCtrl_AdjustRect(hTabControl, FALSE, &rcTab);
     
-    // Create Lock & Input tab (modeless dialog)
-    hTabLockInput = CreateDialogParam(GetModuleHandle(NULL),
-                                     MAKEINTRESOURCE(IDD_TAB_LOCK_INPUT),
-                                     hMainDialog, LockInputTab::DialogProc, (LPARAM)lockInputTab);
+    // Store the tab rectangle for lazy creation
+    tabRect = rcTab;
+    
+    // Only create the first tab (Lock & Input) initially for better startup performance
+    CreateSingleTab(TAB_LOCK_INPUT);
+}
+
+void SettingsDialog::CreateSingleTab(int tabIndex) {
+    HWND* tabHandle = nullptr;
+    int dialogResource = 0;
+    DLGPROC dialogProc = nullptr;
+    LPARAM dialogParam = 0;
+    
+    switch(tabIndex) {
+        case TAB_LOCK_INPUT:
+            if (hTabLockInput) return; // Already created
+            tabHandle = &hTabLockInput;
+            dialogResource = IDD_TAB_LOCK_INPUT;
+            dialogProc = LockInputTab::DialogProc;
+            dialogParam = (LPARAM)lockInputTab;
+            break;
+        case TAB_PRODUCTIVITY:
+            if (hTabProductivity) return;
+            tabHandle = &hTabProductivity;
+            dialogResource = IDD_TAB_PRODUCTIVITY;
+            dialogProc = ProductivityTab::DialogProc;
+            dialogParam = (LPARAM)productivityTab;
+            break;
+        case TAB_PRIVACY:
+            if (hTabPrivacy) return;
+            tabHandle = &hTabPrivacy;
+            dialogResource = IDD_TAB_PRIVACY;
+            dialogProc = PrivacyTab::DialogProc;
+            dialogParam = (LPARAM)privacyTab;
+            break;
+        case TAB_APPEARANCE:
+            if (hTabAppearance) return;
+            tabHandle = &hTabAppearance;
+            dialogResource = IDD_TAB_APPEARANCE;
+            dialogProc = AppearanceTab::DialogProc;
+            dialogParam = (LPARAM)appearanceTab;
+            break;
+        case TAB_DATA:
+            if (hTabData) return;
+            tabHandle = &hTabData;
+            dialogResource = IDD_TAB_DATA;
+            dialogProc = DataTab::DialogProc;
+            dialogParam = (LPARAM)dataTab;
+            break;
+        default:
+            return;
+    }
+    
+    // Create the tab dialog
+    *tabHandle = CreateDialogParam(GetModuleHandle(NULL),
+                                  MAKEINTRESOURCE(dialogResource),
+                                  hMainDialog, dialogProc, dialogParam);
     
     // Position the tab dialog
-    if (hTabLockInput) {
-        SetWindowPos(hTabLockInput, NULL, rcTab.left, rcTab.top,
-                    rcTab.right - rcTab.left, rcTab.bottom - rcTab.top,
+    if (*tabHandle) {
+        SetWindowPos(*tabHandle, NULL, tabRect.left, tabRect.top,
+                    tabRect.right - tabRect.left, tabRect.bottom - tabRect.top,
                     SWP_NOZORDER);
-    }
-    
-    // Create other tabs (for now, simple message dialogs)
-    hTabProductivity = CreateDialogParam(GetModuleHandle(NULL),
-                                        MAKEINTRESOURCE(IDD_TAB_PRODUCTIVITY),
-                                        hMainDialog, ProductivityTab::DialogProc, (LPARAM)productivityTab);
-    if (hTabProductivity) {
-        SetWindowPos(hTabProductivity, NULL, rcTab.left, rcTab.top,
-                    rcTab.right - rcTab.left, rcTab.bottom - rcTab.top,
-                    SWP_NOZORDER);
-    }
-    
-    hTabPrivacy = CreateDialogParam(GetModuleHandle(NULL),
-                                   MAKEINTRESOURCE(IDD_TAB_PRIVACY),
-                                   hMainDialog, PrivacyTab::DialogProc, (LPARAM)privacyTab);
-    if (hTabPrivacy) {
-        SetWindowPos(hTabPrivacy, NULL, rcTab.left, rcTab.top,
-                    rcTab.right - rcTab.left, rcTab.bottom - rcTab.top,
-                    SWP_NOZORDER);
-    }
-    
-    hTabAppearance = CreateDialogParam(GetModuleHandle(NULL),
-                                      MAKEINTRESOURCE(IDD_TAB_APPEARANCE),
-                                      hMainDialog, AppearanceTab::DialogProc, (LPARAM)appearanceTab);
-    if (hTabAppearance) {
-        SetWindowPos(hTabAppearance, NULL, rcTab.left, rcTab.top,
-                    rcTab.right - rcTab.left, rcTab.bottom - rcTab.top,
-                    SWP_NOZORDER);
+        ShowWindow(*tabHandle, SW_HIDE); // Start hidden
     }
 }
 
@@ -281,6 +322,14 @@ void SettingsDialog::SwitchTab(int tabIndex) {
     
     HideCurrentTab();
     currentTabIndex = tabIndex;
+    
+    // Ensure tab control selection matches
+    if (hTabControl) {
+        TabCtrl_SetCurSel(hTabControl, tabIndex);
+    }
+    
+    // Create tab if it doesn't exist (lazy loading)
+    CreateSingleTab(tabIndex);
     
     switch (tabIndex) {
         case TAB_LOCK_INPUT:
@@ -294,6 +343,9 @@ void SettingsDialog::SwitchTab(int tabIndex) {
             break;
         case TAB_APPEARANCE:
             ShowTabDialog(hTabAppearance);
+            break;
+        case TAB_DATA:
+            ShowTabDialog(hTabData);
             break;
     }
 }
@@ -336,98 +388,129 @@ void SettingsDialog::RefreshCurrentTabControls() {
                 appearanceTab->RefreshControls();
             }
             break;
+        case TAB_DATA:
+            if (dataTab) {
+                dataTab->UpdateUI(hTabData);
+            }
+            break;
     }
 }
 
 void SettingsDialog::LoadSettings() {
     tempSettings = *settings;
-    originalSettings = *settings; // Update baseline
     hasUnsavedChanges = false;
+    UpdateButtonStates(); // Ensure button states are properly initialized
+}
+
+void SettingsDialog::RefreshAllTabs() {
+    // Refresh all tab UI controls to reflect current tempSettings
+    if (lockInputTab) {
+        lockInputTab->RefreshControls();
+    }
+    if (productivityTab) {
+        productivityTab->RefreshControls();
+    }
+    if (privacyTab) {
+        privacyTab->RefreshControls();
+    }
+    if (appearanceTab) {
+        appearanceTab->RefreshControls();
+    }
+    if (dataTab) {
+        dataTab->UpdateUI(hTabData);
+    }
+}
+
+void SettingsDialog::UpdateButtonStates() {
+    // Update the state of OK/Apply buttons based on whether there are changes
+    if (hMainDialog) {
+        // Apply button: enabled when UI differs from current runtime settings
+        // Note: Don't call ReadUIValues() here as tab classes maintain tempSettings directly
+        bool hasRuntimeChanges = g_settingsCore.HasChanges(tempSettings, g_appSettings);
+        EnableWindow(GetDlgItem(hMainDialog, IDC_BTN_APPLY), hasRuntimeChanges);
+        
+        // OK button should always be enabled
+        EnableWindow(GetDlgItem(hMainDialog, IDC_BTN_OK), TRUE);
+        
+        // Update hasUnsavedChanges for other operations (comparing against persistent)
+        hasUnsavedChanges = g_settingsCore.HasChanges(tempSettings, g_persistentSettings);
+    }
 }
 
 void SettingsDialog::SaveSettings() {
-    // First, read all current values from UI into tempSettings
-    ReadUIValues();
+    // tempSettings is maintained by tab classes - no need to read UI values
     
-    // Use modular settings core for saving
-    if (g_settingsCore.SaveSettings(tempSettings)) {
-        *settings = tempSettings; // Update the original settings pointer
-        originalSettings = tempSettings; // Update baseline
+    // Check if current settings are default settings
+    AppSettings defaults;
+    bool isDefaultSettings = (tempSettings == defaults);
+    
+    bool success = false;
+    if (isDefaultSettings) {
+        // If saving default settings, clear persistent storage instead
+        // This ensures next app startup loads defaults from constructor
+        success = g_settingsCore.ClearPersistentStorage();
+        if (success) {
+            // Update persistent settings to reflect that storage is cleared
+            g_persistentSettings = defaults;
+        }
+    } else {
+        // Save current temp settings normally
+        success = g_settingsCore.SaveSettings(tempSettings);
+        if (success) {
+            // Update persistent settings baseline
+            g_persistentSettings = tempSettings;
+        }
+    }
+    
+    if (success) {
+        // Update runtime settings in both cases
+        g_appSettings = tempSettings;
+        
+        // Update the original settings pointer if provided
+        if (settings) {
+            *settings = tempSettings;
+        }
+        
         hasUnsavedChanges = false;
+        
+        // Apply the saved settings to the runtime system
+        RefreshHooks();
+        if (g_mainWindow) {
+            RegisterHotkeyFromSettings(g_mainWindow);
+        }
+        
+        // Show save success notification
+        ShowNotification(g_mainWindow, NOTIFY_SETTINGS_SAVED, "Settings saved successfully");
+    } else {
+        // Show save failure notification
+        ShowNotification(g_mainWindow, NOTIFY_SETTINGS_ERROR, "Failed to save settings");
     }
 }
 
 void SettingsDialog::ReadUIValues() {
-    // Read values from Lock & Input tab
-    if (hTabLockInput) {
-        // Read checkboxes
-        tempSettings.keyboardLockEnabled = IsDlgButtonChecked(hTabLockInput, IDC_CHECK_KEYBOARD) == BST_CHECKED;
-        tempSettings.mouseLockEnabled = IsDlgButtonChecked(hTabLockInput, IDC_CHECK_MOUSE) == BST_CHECKED;
-        
-        // Read radio buttons for unlock method (only Password and Timer now)
-        if (IsDlgButtonChecked(hTabLockInput, IDC_RADIO_PASSWORD) == BST_CHECKED) {
-            tempSettings.unlockMethod = 0;
-        } else if (IsDlgButtonChecked(hTabLockInput, IDC_RADIO_TIMER) == BST_CHECKED) {
-            tempSettings.unlockMethod = 1;
-        }
-        
-        // Read whitelist checkbox separately (it's now an addon feature)
-        tempSettings.whitelistEnabled = IsDlgButtonChecked(hTabLockInput, IDC_CHECK_WHITELIST) == BST_CHECKED;
-        
-        // Read hotkey text
-        char hotkeyBuffer[256];
-        GetDlgItemTextA(hTabLockInput, IDC_EDIT_HOTKEY_LOCK, hotkeyBuffer, sizeof(hotkeyBuffer));
-        tempSettings.lockHotkey = std::string(hotkeyBuffer);
-        
-        // Convert hotkey string to modifiers and virtual key using the parsing function
-        extern bool ParseHotkeyString(const std::string& hotkeyStr, UINT& modifiers, UINT& virtualKey);
-        ParseHotkeyString(tempSettings.lockHotkey, 
-                         (UINT&)tempSettings.hotkeyModifiers, 
-                         (UINT&)tempSettings.hotkeyVirtualKey);
-    }
+    // This method is now deprecated - tab classes maintain tempSettings directly
+    // via HandleControlCommand() methods. This ensures immediate Apply button updates
+    // and eliminates race conditions between UI updates and settings state.
     
-    // Read values from Productivity tab
-    if (hTabProductivity) {
-        tempSettings.usbAlertEnabled = IsDlgButtonChecked(hTabProductivity, IDC_CHECK_USB_ALERT) == BST_CHECKED;
-        tempSettings.quickLaunchEnabled = IsDlgButtonChecked(hTabProductivity, IDC_CHECK_QUICK_LAUNCH) == BST_CHECKED;
-        tempSettings.workBreakTimerEnabled = IsDlgButtonChecked(hTabProductivity, IDC_CHECK_TIMER) == BST_CHECKED;
-    }
-    
-    // Read values from Privacy tab
-    if (hTabPrivacy) {
-        tempSettings.startWithWindows = IsDlgButtonChecked(hTabPrivacy, IDC_CHECK_START_WINDOWS) == BST_CHECKED;
-        tempSettings.bossKeyEnabled = IsDlgButtonChecked(hTabPrivacy, IDC_CHECK_BOSS_KEY) == BST_CHECKED;
-        
-        // Read boss key hotkey
-        char bossKeyBuffer[256];
-        GetDlgItemTextA(hTabPrivacy, IDC_EDIT_HOTKEY_BOSS, bossKeyBuffer, sizeof(bossKeyBuffer));
-        tempSettings.bossKeyHotkey = std::string(bossKeyBuffer);
-    }
-    
-    // Read values from Appearance tab
-    if (hTabAppearance) {
-        tempSettings.overlayStyle = g_overlayManager.GetStyle();
-        
-        // Read notification style
-        if (IsDlgButtonChecked(hTabAppearance, IDC_RADIO_NOTIFY_CUSTOM) == BST_CHECKED) {
-            tempSettings.notificationStyle = 0;
-        } else if (IsDlgButtonChecked(hTabAppearance, IDC_RADIO_NOTIFY_WINDOWS) == BST_CHECKED) {
-            tempSettings.notificationStyle = 1;
-        } else if (IsDlgButtonChecked(hTabAppearance, IDC_RADIO_NOTIFY_WINDOWS_NOTIF) == BST_CHECKED) {
-            tempSettings.notificationStyle = 2;
-        } else if (IsDlgButtonChecked(hTabAppearance, IDC_RADIO_NOTIFY_NONE) == BST_CHECKED) {
-            tempSettings.notificationStyle = 3;
-        }
-    }
+    // Note: If any controls are added that don't go through tab classes,
+    // add their reading logic here as a fallback.
 }
 
 void SettingsDialog::ApplySettings() {
-    // Update global settings first so notifications respect new settings
-    *settings = tempSettings;
-    g_appSettings = tempSettings;
+    // Check if there are any changes compared to current runtime settings
+    // Note: tempSettings is maintained by tab controls, don't call ReadUIValues()
+    if (!g_settingsCore.HasChanges(tempSettings, g_appSettings)) {
+        // No changes detected, show appropriate message
+        ShowNotification(g_mainWindow, NOTIFY_SETTINGS_APPLIED, "No changes to apply");
+        return;
+    }
     
-    // Use modular settings core for applying settings
-    if (g_settingsCore.ApplySettings(tempSettings, g_mainWindow)) {
+    // Apply settings temporarily to current session (does not save to registry)
+    // Use optimized method that only applies changed categories
+    if (g_settingsCore.ApplySettings(tempSettings, g_appSettings, g_mainWindow)) {
+        // Update global runtime settings temporarily (NOT saved to registry)
+        g_appSettings = tempSettings;
+        
         // Refresh input hooks based on new keyboard/mouse lock settings
         RefreshHooks();
         
@@ -436,13 +519,39 @@ void SettingsDialog::ApplySettings() {
             RegisterHotkeyFromSettings(g_mainWindow);
         }
         
-        hasUnsavedChanges = false;
+        // Update button states after successful apply
+        // tempSettings != g_persistentSettings means there are unsaved changes
+        hasUnsavedChanges = g_settingsCore.HasChanges(tempSettings, g_persistentSettings);
+        UpdateButtonStates();
     }
 }
 
 bool SettingsDialog::HasPendingChanges() {
-    // Use modular settings core for change detection
-    return g_settingsCore.HasChanges(tempSettings, originalSettings);
+    // Check if current UI state (tempSettings) differs from runtime (g_appSettings)
+    // This is for tab switching - asking "apply changes to runtime?"
+    return g_settingsCore.HasChanges(tempSettings, g_appSettings);
+}
+
+void SettingsDialog::ResetToDefaults() {
+    // Create default settings
+    AppSettings defaults; // Uses constructor defaults
+    
+    // Apply defaults to current session (but don't save to registry yet)
+    g_appSettings = defaults;
+    tempSettings = defaults;
+    
+    // Refresh UI to show default values
+    RefreshAllTabs();
+    
+    // Refresh runtime system with defaults
+    RefreshHooks();
+    if (g_mainWindow) {
+        RegisterHotkeyFromSettings(g_mainWindow);
+    }
+    
+    // Check if user has unsaved changes (defaults vs persistent settings)
+    hasUnsavedChanges = g_settingsCore.HasChanges(defaults, g_persistentSettings);
+    UpdateButtonStates();
 }
 
 void SettingsDialog::ShowPasswordConfig() {
@@ -539,9 +648,21 @@ void InitializeSettings() {
 }
 
 void LoadSettingsFromFile() {
-    // Load settings from configuration file
-    // For now, use defaults
-    g_appSettings = AppSettings{};
+    // Load persistent settings from registry
+    if (g_settingsCore.LoadSettings(g_persistentSettings)) {
+        // Successfully loaded saved settings from registry
+        g_appSettings = g_persistentSettings;  // Apply to runtime
+        g_tempSettings = g_persistentSettings; // Initialize temp with saved settings
+    } else {
+        // No saved settings found (first time user or registry missing)
+        // Use defaults for all three layers
+        AppSettings defaults; // Uses constructor defaults
+        g_persistentSettings = defaults;
+        g_appSettings = defaults;
+        g_tempSettings = defaults;
+    }
+    
+    g_settingsLoaded = true;
 }
 
 void SaveSettingsToFile() {

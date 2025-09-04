@@ -5,7 +5,7 @@
 #include "../settings.h"
 #include "../resource.h"
 #include "../features/privacy/privacy_manager.h"
-#include "../settings/hotkey_manager.h"
+#include "../features/lock_input/hotkey_manager.h"
 #include <commctrl.h>
 
 // Global manager instances
@@ -107,6 +107,10 @@ void PrivacyTab::OnStartWithWindowsChanged(HWND hDlg) {
 
     if (oldValue != tempSettings->startWithWindows) {
         *hasUnsavedChanges = true;
+        // Notify parent dialog to update button states
+        if (parentDialog) {
+            parentDialog->UpdateButtonStates();
+        }
     }
 }
 
@@ -119,6 +123,10 @@ void PrivacyTab::OnBossKeyEnabledChanged(HWND hDlg) {
 
     if (oldValue != tempSettings->bossKeyEnabled) {
         *hasUnsavedChanges = true;
+        // Notify parent dialog to update button states
+        if (parentDialog) {
+            parentDialog->UpdateButtonStates();
+        }
     }
 }
 

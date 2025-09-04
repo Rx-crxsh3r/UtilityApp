@@ -1,10 +1,10 @@
-// src/ui/lock_input_tab.h
+// src/features/lock_input/lock_input_tab.h
 // Lock Input Tab - OOP implementation for better code organization
 
 #pragma once
 #include <windows.h>
 #include <string>
-#include "../settings/settings_core.h"
+#include "../../settings/settings_core.h"
 
 // Forward declarations
 class SettingsDialog;

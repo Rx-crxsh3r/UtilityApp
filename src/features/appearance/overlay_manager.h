@@ -1,9 +1,9 @@
-// src/settings/overlay_manager.h
+// src/features/appearance/overlay_manager.h
 // Overlay style management header
 
 #pragma once
 #include <windows.h>
-#include "../overlay.h"  // Use the existing OverlayStyle enum
+#include "../../overlay.h"  // Use the existing OverlayStyle enum
 
 class OverlayManager {
 private:

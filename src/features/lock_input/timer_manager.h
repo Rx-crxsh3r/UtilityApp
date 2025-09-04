@@ -1,5 +1,5 @@
-// src/settings/timer_manager.h
-// Timer configuration and management module
+// src/features/lock_input/timer_manager.h
+// Timer management for auto-unlock functionality
 
 #pragma once
 #include <windows.h>

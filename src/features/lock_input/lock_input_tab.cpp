@@ -1,11 +1,11 @@
-// src/ui/lock_input_tab.cpp
+// src/features/lock_input/lock_input_tab.cpp
 // Lock Input Tab - OOP implementation
 
 #include "lock_input_tab.h"
-#include "../settings.h"  // For SettingsDialog access
-#include "../settings/settings_core.h"
-#include "../settings/hotkey_manager.h"
-#include "../resource.h"  // For control IDs
+#include "../../settings.h"  // For SettingsDialog access
+#include "../../settings/settings_core.h"
+#include "hotkey_manager.h"
+#include "../../resource.h"  // For control IDs
 #include <commctrl.h>
 
 // External references
@@ -52,30 +52,7 @@ INT_PTR LockInputTab::HandleMessage(HWND hDlg, UINT message, WPARAM wParam, LPAR
         }
 
         case WM_USER + 101: {
-            // Custom message from hotkey manager - hotkey capture completed
-            // Read the updated hotkey from the text box and update tempSettings
-            char hotkeyBuffer[256];
-            GetDlgItemTextA(hTabDialog, IDC_EDIT_HOTKEY_LOCK, hotkeyBuffer, sizeof(hotkeyBuffer));
-            std::string newHotkey = std::string(hotkeyBuffer);
-            
-            // Check if hotkey actually changed
-            if (newHotkey != tempSettings->lockHotkey) {
-                tempSettings->lockHotkey = newHotkey;
-                
-                // Parse hotkey to extract modifiers and virtual key
-                extern bool ParseHotkeyString(const std::string& hotkeyStr, UINT& modifiers, UINT& virtualKey);
-                ParseHotkeyString(tempSettings->lockHotkey, 
-                                (UINT&)tempSettings->hotkeyModifiers, 
-                                (UINT&)tempSettings->hotkeyVirtualKey);
-                
-                // Mark as having unsaved changes and update Apply button
-                *hasUnsavedChanges = true;
-                if (parentDialog) {
-                    parentDialog->UpdateButtonStates();
-                }
-            }
-            
-            // Update warnings with new hotkey
+            // Custom message from hotkey manager - update warnings
             UpdateWarnings();
             return TRUE;
         }
@@ -145,10 +122,6 @@ void LockInputTab::HandleControlCommand(WPARAM wParam, LPARAM lParam) {
             if (oldKeyboard != tempSettings->keyboardLockEnabled ||
                 oldMouse != tempSettings->mouseLockEnabled) {
                 *hasUnsavedChanges = true;
-                // Notify parent dialog to update button states
-                if (parentDialog) {
-                    parentDialog->UpdateButtonStates();
-                }
             }
 
             // Update warnings when lock type changes
@@ -163,10 +136,6 @@ void LockInputTab::HandleControlCommand(WPARAM wParam, LPARAM lParam) {
 
             if (oldMethod != tempSettings->unlockMethod) {
                 *hasUnsavedChanges = true;
-                // Notify parent dialog to update button states
-                if (parentDialog) {
-                    parentDialog->UpdateButtonStates();
-                }
             }
 
             // Update warnings when unlock method changes
@@ -183,10 +152,6 @@ void LockInputTab::HandleControlCommand(WPARAM wParam, LPARAM lParam) {
 
             if (oldValue != tempSettings->whitelistEnabled) {
                 *hasUnsavedChanges = true;
-                // Notify parent dialog to update button states
-                if (parentDialog) {
-                    parentDialog->UpdateButtonStates();
-                }
             }
             break;
         }

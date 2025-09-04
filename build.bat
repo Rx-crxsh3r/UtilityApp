@@ -26,10 +26,11 @@ gcc -c src\audio_manager.cpp -o obj\audio_manager.o
 gcc -c src\custom_notifications.cpp -o obj\custom_notifications.o
 gcc -c src\notifications.cpp -o obj\notifications.o
 gcc -c src\overlay.cpp -o obj\overlay.o
-gcc -c src\ui\lock_input_tab.cpp -o obj\lock_input_tab.o
+gcc -c src\features\lock_input\lock_input_tab.cpp -o obj\lock_input_tab.o
 gcc -c src\ui\productivity_tab.cpp -o obj\productivity_tab.o
 gcc -c src\ui\privacy_tab.cpp -o obj\privacy_tab.o
-gcc -c src\ui\appearance_tab.cpp -o obj\appearance_tab.o
+gcc -c src\features\appearance\appearance_tab.cpp -o obj\appearance_tab.o
+gcc -c src\features\data_management\data_tab.cpp -o obj\data_tab.o
 if %errorlevel% neq 0 (
     echo ERROR: Failed to compile core modules
     pause
@@ -38,13 +39,11 @@ if %errorlevel% neq 0 (
 
 echo [3/5] Compiling settings system...
 gcc -c src\settings.cpp -o obj\settings.o
-gcc -c src\settings_ui.cpp -o obj\settings_ui.o
-gcc -c src\settings_api.cpp -o obj\settings_api.o
-gcc -c src\settings\hotkey_manager.cpp -o obj\hotkey_manager.o
-gcc -c src\settings\overlay_manager.cpp -o obj\overlay_manager.o
-gcc -c src\settings\password_manager.cpp -o obj\password_manager.o
+gcc -c src\features\lock_input\hotkey_manager.cpp -o obj\hotkey_manager.o
+gcc -c src\features\appearance\overlay_manager.cpp -o obj\overlay_manager.o
+gcc -c src\features\lock_input\password_manager.cpp -o obj\password_manager.o
 gcc -c src\settings\settings_core.cpp -o obj\settings_core.o
-gcc -c src\settings\timer_manager.cpp -o obj\timer_manager.o
+gcc -c src\features\lock_input\timer_manager.cpp -o obj\timer_manager.o
 if %errorlevel% neq 0 (
     echo ERROR: Failed to compile settings system
     pause
@@ -75,9 +74,8 @@ gcc -o UtilityApp.exe ^
     obj\productivity_tab.o ^
     obj\privacy_tab.o ^
     obj\appearance_tab.o ^
+    obj\data_tab.o ^
     obj\settings.o ^
-    obj\settings_ui.o ^
-    obj\settings_api.o ^
     obj\hotkey_manager.o ^
     obj\overlay_manager.o ^
     obj\password_manager.o ^

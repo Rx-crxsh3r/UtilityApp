@@ -3,46 +3,7 @@
 
 #include <windows.h>
 #include <commctrl.h>
-
-// Settings Dialog Resource IDs (moved from settings.h for resource compilation)
-#define IDD_SETTINGS_DIALOG     200
-#define IDC_TAB_CONTROL         201
-
-// Tab Resource IDs  
-#define IDD_TAB_LOCK_INPUT      210
-#define IDD_TAB_PRODUCTIVITY    211
-#define IDD_TAB_PRIVACY         212
-#define IDD_TAB_APPEARANCE      213
-
-// Lock & Input Tab Controls
-#define IDC_CHECK_KEYBOARD      220
-#define IDC_CHECK_MOUSE         221
-#define IDC_RADIO_PASSWORD      222
-#define IDC_RADIO_TIMER         223
-#define IDC_RADIO_WHITELIST     224
-#define IDC_EDIT_HOTKEY_LOCK    225
-#define IDC_BTN_PASSWORD_CFG    226
-#define IDC_BTN_TIMER_CFG       227
-#define IDC_BTN_WHITELIST_CFG   228
-#define IDC_BTN_SAVE_HOTKEY     229
-#define IDC_BTN_CANCEL_HOTKEY   230
-#define IDC_LABEL_HOTKEY_HINT   231
-#define IDC_LABEL_HOTKEY_WARNING 232
-
-// Appearance Tab Controls
-#define IDC_RADIO_BLUR          240
-#define IDC_RADIO_DIM           241
-#define IDC_RADIO_BLACK         242
-#define IDC_RADIO_NONE          243
-#define IDC_LABEL_OVERLAY_DESC  244
-
-// Placeholder Controls for Coming Soon tabs
-#define IDC_LABEL_COMING_SOON   250
-
-// Button Controls
-#define IDC_BTN_OK              260
-#define IDC_BTN_CANCEL          261
-#define IDC_BTN_APPLY           262
+#include "../src/resource.h"
 
 // Main Settings Dialog
 IDD_SETTINGS_DIALOG DIALOGEX 0, 0, 450, 350
@@ -155,4 +116,28 @@ BEGIN
     
     CONTROL         "None", IDC_RADIO_NOTIFY_NONE, "Button", BS_AUTORADIOBUTTON | WS_CHILD | WS_VISIBLE | WS_TABSTOP, 30, 235, 40, 10
     LTEXT           "Disable all notifications", -1, 80, 235, 200, 8
+END
+
+// Data Tab Dialog
+IDD_TAB_DATA DIALOGEX 0, 0, 420, 270
+STYLE DS_CONTROL | WS_CHILD | WS_VISIBLE
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    GROUPBOX        "Settings Management", -1, 10, 10, 400, 100
+    LTEXT           "Manage your application settings and configuration files.", IDC_LABEL_DATA_DESC, 20, 25, 380, 16
+    
+    PUSHBUTTON      "Save Settings", IDC_BTN_SAVE_SETTINGS, 30, 45, 80, 25
+    LTEXT           "Save current settings permanently", -1, 120, 50, 150, 8
+    
+    PUSHBUTTON      "Reset to Default", IDC_BTN_RESET_SETTINGS, 30, 75, 80, 25
+    LTEXT           "Reset all settings to factory defaults", -1, 120, 80, 150, 8
+    
+    GROUPBOX        "Import/Export Settings", -1, 10, 120, 400, 100
+    LTEXT           "Backup and restore your settings using configuration files.", -1, 20, 135, 380, 16
+    
+    PUSHBUTTON      "Load Settings", IDC_BTN_LOAD_SETTINGS, 30, 155, 80, 25
+    LTEXT           "Load settings from a configuration file", -1, 120, 160, 150, 8
+    
+    PUSHBUTTON      "Export Settings", IDC_BTN_EXPORT_SETTINGS, 30, 185, 80, 25
+    LTEXT           "Export current settings to a file", -1, 120, 190, 150, 8
 END

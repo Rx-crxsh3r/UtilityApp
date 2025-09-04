@@ -1,8 +1,8 @@
-// src/settings/password_manager.cpp
+// src/features/lock_input/password_manager.cpp
 // Password handling and validation implementation
 
 #include "password_manager.h"
-#include "../resource.h"
+#include "../../resource.h"
 #include <sstream>
 #include <iomanip>
 #include <algorithm>

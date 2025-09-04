@@ -14,6 +14,12 @@ enum NotificationStyle {
     NOTIFY_STYLE_NONE = 3                  // No notifications
 };
 
+enum NotificationLevel {
+    NOTIFY_LEVEL_INFO = 0,
+    NOTIFY_LEVEL_WARNING = 1,
+    NOTIFY_LEVEL_ERROR = 2
+};
+
 struct CustomNotification {
     std::string title;
     std::string message;
@@ -23,10 +29,11 @@ struct CustomNotification {
     float opacity;
     int yPosition;
     int targetY;
+    NotificationLevel level;
     
-    CustomNotification(const std::string& t, const std::string& m, DWORD dur = 4000) 
+    CustomNotification(const std::string& t, const std::string& m, DWORD dur = 4000, NotificationLevel lvl = NOTIFY_LEVEL_INFO) 
         : title(t), message(m), showTime(GetTickCount()), duration(dur), 
-          isVisible(true), opacity(0.0f), yPosition(0), targetY(0) {}
+          isVisible(true), opacity(0.0f), yPosition(0), targetY(0), level(lvl) {}
 };
 
 class CustomNotificationSystem {
@@ -52,6 +59,11 @@ private:
     static const COLORREF TITLE_COLOR = RGB(255, 255, 255); // #FFFFFF
     static const COLORREF ACCENT_COLOR = RGB(58, 159, 255); // #3A9FFF
     
+    // Error notification colors
+    static const COLORREF ERROR_BG_COLOR = RGB(40, 13, 13);    // Dark red background
+    static const COLORREF ERROR_ACCENT_COLOR = RGB(255, 58, 58); // Red accent
+    static const COLORREF ERROR_BORDER_COLOR = RGB(180, 40, 40); // Red border
+    
     void CreateNotificationWindow();
     void UpdateNotifications();
     void DrawNotification(HDC hdc, CustomNotification* notif, int index);
@@ -68,7 +80,7 @@ public:
     
     void Initialize();
     void Cleanup();
-    void ShowNotification(const std::string& title, const std::string& message, DWORD duration = 4000);
+    void ShowNotification(const std::string& title, const std::string& message, DWORD duration = 4000, NotificationLevel level = NOTIFY_LEVEL_INFO);
     void ClearAll();
     void SetStyle(NotificationStyle style) { currentStyle = style; }
     NotificationStyle GetStyle() const { return currentStyle; }
@@ -81,6 +93,6 @@ private:
 extern CustomNotificationSystem* g_customNotifications;
 
 // Helper functions
-void ShowCustomNotification(const std::string& title, const std::string& message);
+void ShowCustomNotification(const std::string& title, const std::string& message, NotificationLevel level = NOTIFY_LEVEL_INFO);
 void InitializeCustomNotifications();
 void CleanupCustomNotifications();

@@ -1,4 +1,4 @@
-// src/settings/hotkey_manager.cpp
+// src/features/lock_input/hotkey_manager.cpp
 // Hotkey capture and management implementation
 
 #include "hotkey_manager.h"
@@ -91,6 +91,26 @@ bool HotkeyManager::ValidateHotkey(const std::string& hotkey) {
 
 bool HotkeyManager::IsSingleKey(const std::string& hotkey) {
     return (hotkey.find('+') == std::string::npos) && hotkey.length() == 1;
+}
+
+bool HotkeyManager::IsHotkeyAvailable(UINT modifiers, UINT virtualKey) {
+    // Try to register the hotkey temporarily to check if it's available
+    // Use a unique atom ID for testing
+    static const int TEST_HOTKEY_ID = 9999;
+    
+    // First unregister any existing test hotkey to be safe
+    UnregisterHotKey(NULL, TEST_HOTKEY_ID);
+    
+    // Try to register the hotkey
+    BOOL result = RegisterHotKey(NULL, TEST_HOTKEY_ID, modifiers, virtualKey);
+    
+    // If successful, immediately unregister it
+    if (result) {
+        UnregisterHotKey(NULL, TEST_HOTKEY_ID);
+        return true;
+    }
+    
+    return false;
 }
 
 std::string HotkeyManager::VirtualKeyToString(UINT vkCode) {

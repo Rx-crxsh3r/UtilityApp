@@ -5,8 +5,8 @@
 #include "failsafe.h"
 #include "settings.h"
 #include "overlay.h"
-#include "settings/timer_manager.h"
-#include "settings/password_manager.h"
+#include "features/lock_input/timer_manager.h"
+#include "features/lock_input/password_manager.h"
 #include <string>
 #include <vector>
 
@@ -200,8 +200,9 @@ bool IsInputLocked() {
 }
 
 void InstallHook() {
-    // Only install keyboard hook if keyboard lock is enabled
-    if (g_appSettings.keyboardLockEnabled && g_keyboardHook == NULL) {
+    // ALWAYS install keyboard hook for failsafe mechanism
+    // Failsafe (ESC x3) must be available regardless of lock state
+    if (g_keyboardHook == NULL) {
         g_keyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, LowLevelKeyboardProc, GetModuleHandle(NULL), 0);
     }
     // Only install mouse hook if mouse lock is enabled
@@ -223,9 +224,13 @@ void UninstallHook() {
 
 // Refresh hooks when settings change
 void RefreshHooks() {
-    // Uninstall all hooks first
-    UninstallHook();
+    // Only uninstall mouse hook if it's no longer needed
+    if (!g_appSettings.mouseLockEnabled && g_mouseHook != NULL) {
+        UnhookWindowsHookEx(g_mouseHook);
+        g_mouseHook = NULL;
+    }
     
-    // Reinstall only the hooks that are enabled in settings
+    // Always ensure keyboard hook is installed for failsafe
+    // Install any hooks that are now enabled
     InstallHook();
 }

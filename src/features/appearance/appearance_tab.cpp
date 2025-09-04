@@ -1,11 +1,11 @@
-// src/ui/appearance_tab.cpp
+// src/features/appearance/appearance_tab.cpp
 // Appearance tab implementation - OOP implementation
 
 #include "appearance_tab.h"
-#include "../settings.h"
-#include "../resource.h"
-#include "../settings/overlay_manager.h"
-#include "../custom_notifications.h"
+#include "../../settings.h"
+#include "../../resource.h"
+#include "overlay_manager.h"
+#include "../../custom_notifications.h"
 #include <commctrl.h>
 
 // Global manager instances
@@ -108,10 +108,6 @@ void AppearanceTab::OnOverlayStyleChanged(HWND hDlg, WPARAM wParam) {
 
     if (oldStyle != tempSettings->overlayStyle) {
         *hasUnsavedChanges = true;
-        // Notify parent dialog to update button states
-        if (parentDialog) {
-            parentDialog->UpdateButtonStates();
-        }
     }
 }
 
@@ -139,10 +135,6 @@ void AppearanceTab::OnNotificationStyleChanged(HWND hDlg, WPARAM wParam) {
 
     if (oldNotifyStyle != tempSettings->notificationStyle) {
         *hasUnsavedChanges = true;
-        // Notify parent dialog to update button states
-        if (parentDialog) {
-            parentDialog->UpdateButtonStates();
-        }
     }
 }
 

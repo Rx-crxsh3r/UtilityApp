@@ -1,11 +1,11 @@
-// src/ui/appearance_tab.h
+// src/features/appearance/appearance_tab.h
 // Appearance tab header - OOP implementation
 
 #pragma once
 
 #include <windows.h>
 #include <string>
-#include "../settings/settings_core.h"
+#include "../../settings/settings_core.h"
 
 // Forward declarations
 class SettingsDialog;
