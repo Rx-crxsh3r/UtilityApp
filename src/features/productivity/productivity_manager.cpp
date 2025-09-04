@@ -117,10 +117,8 @@ bool ProductivityManager::HandleDeviceChange(WPARAM wParam, LPARAM lParam) {
                 // Show notification with sound
                 std::string message = "USB device connected: " + device.driveLetter;
                 
-                // Force use custom notification system for USB alerts
-                if (g_customNotifications) {
-                    g_customNotifications->ShowNotification("USB Alert", message);
-                }
+                // Use centralized notification system
+                ShowNotification(mainWindow, NOTIFY_USB_DEVICE_CONNECTED, message.c_str());
                 
                 // Play notification sound
                 PlayNotificationSound(SOUND_USB_DEVICE);
@@ -146,10 +144,8 @@ bool ProductivityManager::HandleDeviceChange(WPARAM wParam, LPARAM lParam) {
                 // Show notification with sound
                 std::string message = "USB device removed: " + driveStr;
                 
-                // Force use custom notification system for USB alerts
-                if (g_customNotifications) {
-                    g_customNotifications->ShowNotification("USB Alert", message);
-                }
+                // Use centralized notification system
+                ShowNotification(mainWindow, NOTIFY_USB_DEVICE_DISCONNECTED, message.c_str());
                 
                 // Play notification sound
                 PlayNotificationSound(SOUND_USB_DEVICE);
@@ -253,7 +249,12 @@ bool ProductivityManager::ExecuteQuickLaunchApp(UINT hotkeyId) {
                                            NULL, SW_SHOWNORMAL);
             
             // ShellExecute returns value > 32 on success, <= 32 on error
-            return (INT_PTR)result > 32;
+            if ((INT_PTR)result > 32) {
+                // Show success notification
+                std::string message = "Launched: " + app.name;
+                ShowNotification(mainWindow, NOTIFY_QUICK_LAUNCH_EXECUTED, message.c_str());
+                return true;
+            }
         }
     }
     
@@ -290,12 +291,15 @@ bool ProductivityManager::StartTimer(TimerMode mode) {
     switch (mode) {
         case TIMER_WORK:
             duration = workDuration * 60 * 1000; // Convert to milliseconds
+            ShowNotification(mainWindow, NOTIFY_WORK_SESSION_STARTED);
             break;
         case TIMER_BREAK:
             duration = shortBreakDuration * 60 * 1000;
+            ShowNotification(mainWindow, NOTIFY_WORK_BREAK_STARTED);
             break;
         case TIMER_LONG_BREAK:
             duration = longBreakDuration * 60 * 1000;
+            ShowNotification(mainWindow, NOTIFY_WORK_BREAK_STARTED);
             break;
         default:
             return false;

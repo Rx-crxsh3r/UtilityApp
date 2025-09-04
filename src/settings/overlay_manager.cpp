@@ -15,7 +15,7 @@
 // Global instance
 OverlayManager g_overlayManager;
 
-OverlayManager::OverlayManager() : currentStyle(OVERLAY_BLUR), isDirty(false) {
+OverlayManager::OverlayManager() : currentStyle(OVERLAY_DIM), isDirty(false) {
 }
 
 void OverlayManager::SetStyle(OverlayStyle style) {

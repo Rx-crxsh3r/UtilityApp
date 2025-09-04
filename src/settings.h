@@ -11,6 +11,8 @@
 #include "settings/overlay_manager.h"
 #include "ui/lock_input_tab.h"
 #include "ui/productivity_tab.h"
+#include "ui/privacy_tab.h"
+#include "ui/appearance_tab.h"
 
 // Forward declarations
 class PasswordManager;
@@ -101,6 +103,8 @@ private:
     // Tab objects (OOP implementation)
     LockInputTab* lockInputTab;
     ProductivityTab* productivityTab;
+    PrivacyTab* privacyTab;
+    AppearanceTab* appearanceTab;
 
 public:
     SettingsDialog(AppSettings* appSettings);

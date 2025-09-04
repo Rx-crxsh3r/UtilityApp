@@ -2,11 +2,15 @@
 // Custom lightweight notification system implementation
 
 #include "custom_notifications.h"
+#include <windows.h>
 #include <dwmapi.h>
 
 // Global instance
 CustomNotificationSystem* g_customNotifications = nullptr;
 CustomNotificationSystem* CustomNotificationSystem::instance = nullptr;
+
+// External references
+extern HWND g_mainWindow;
 
 const char* NOTIFY_CLASS_NAME = "CustomNotifyClass";
 
@@ -79,11 +83,20 @@ void CustomNotificationSystem::ShowNotification(const std::string& title, const 
     
     if (currentStyle == NOTIFY_STYLE_WINDOWS) {
         // Use Windows native notifications
-        MessageBox(nullptr, message.c_str(), title.c_str(), MB_OK | MB_ICONINFORMATION | MB_TOPMOST);
+        MessageBox(g_mainWindow, message.c_str(), title.c_str(), MB_OK | MB_ICONINFORMATION | MB_TOPMOST);
         return;
     }
     
-    // Custom notification
+    if (currentStyle == NOTIFY_STYLE_WINDOWS_NOTIFICATIONS) {
+        // Use Windows Action Center notifications (balloon tips)
+        extern void ShowBalloonTip(HWND hwnd, const char* title, const char* message, DWORD iconType);
+        extern HWND g_mainWindow;
+        DWORD iconType = NIIF_INFO;
+        ShowBalloonTip(g_mainWindow, title.c_str(), message.c_str(), iconType);
+        return;
+    }
+    
+    // NOTIFY_STYLE_CUSTOM - use custom notification system
     auto notif = std::make_unique<CustomNotification>(title, message, duration);
     
     // Position new notification

@@ -68,10 +68,11 @@
 #define IDC_LABEL_OVERLAY_DESC  244
 
 // Notification Style Controls
-#define IDC_RADIO_NOTIFY_CUSTOM   245
-#define IDC_RADIO_NOTIFY_WINDOWS  246
-#define IDC_RADIO_NOTIFY_NONE     247
-#define IDC_LABEL_NOTIFY_DESC     248
+#define IDC_RADIO_NOTIFY_CUSTOM           245
+#define IDC_RADIO_NOTIFY_WINDOWS          246
+#define IDC_RADIO_NOTIFY_WINDOWS_NOTIF    247
+#define IDC_RADIO_NOTIFY_NONE             248
+#define IDC_LABEL_NOTIFY_DESC             249
 
 // Placeholder Controls for Coming Soon tabs
 #define IDC_LABEL_COMING_SOON   250

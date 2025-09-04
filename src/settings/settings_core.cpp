@@ -180,7 +180,7 @@ bool SettingsCore::ApplySettings(const AppSettings& settings, HWND mainWindow) {
     success &= ApplyNotificationSettings(settings);
     
     if (success && mainWindow) {
-        ShowNotification(mainWindow, NOTIFY_INPUT_UNLOCKED, "All settings have been successfully applied.");
+        ShowNotification(mainWindow, NOTIFY_SETTINGS_APPLIED);
     }
     
     return success;
@@ -208,7 +208,7 @@ bool SettingsCore::ValidateSettings(const AppSettings& settings) {
     }
     
     // Validate notification style
-    if (settings.notificationStyle < 0 || settings.notificationStyle > 2) {
+    if (settings.notificationStyle < 0 || settings.notificationStyle > 3) {
         return false;
     }
     

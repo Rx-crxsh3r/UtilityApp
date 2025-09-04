@@ -248,9 +248,6 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
             // Display notification now that we're out of the hook context
             if (g_customNotifications) {
                 g_customNotifications->ShowNotification(title, message);
-            } else {
-                extern void ShowBalloonTip(HWND hwnd, const char* title, const char* message, DWORD iconType);
-                ShowBalloonTip(hwnd, title, message, iconType);
             }
             
             // Clean up dynamically allocated message

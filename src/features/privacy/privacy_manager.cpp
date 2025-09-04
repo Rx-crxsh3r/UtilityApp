@@ -147,6 +147,10 @@ bool PrivacyManager::ActivateBossKey() {
     EnumWindows(EnumWindowsProc, reinterpret_cast<LPARAM>(this));
     
     bossKeyActive = true;
+    
+    // Show notification
+    ShowNotification(mainWindow, NOTIFY_BOSS_KEY_ACTIVATED);
+    
     return true;
 }
 
@@ -167,6 +171,10 @@ bool PrivacyManager::DeactivateBossKey() {
     
     hiddenWindows.clear();
     bossKeyActive = false;
+    
+    // Show notification
+    ShowNotification(mainWindow, NOTIFY_BOSS_KEY_DEACTIVATED);
+    
     return true;
 }
 

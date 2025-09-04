@@ -28,7 +28,7 @@ SettingsDialog::SettingsDialog(AppSettings* appSettings)
       isEditingHotkey(false), hTabLockInput(nullptr), hTabProductivity(nullptr),
       hTabPrivacy(nullptr), hTabAppearance(nullptr), isCapturingHotkey(false),
       ctrlPressed(false), shiftPressed(false), altPressed(false), winPressed(false),
-      hKeyboardHook(nullptr), lockInputTab(nullptr) {
+      hKeyboardHook(nullptr), lockInputTab(nullptr), productivityTab(nullptr), privacyTab(nullptr), appearanceTab(nullptr) {
     
     // Try to load from registry first, if that fails, use passed settings or defaults
     if (!g_settingsCore.LoadSettings(tempSettings)) {
@@ -49,6 +49,8 @@ SettingsDialog::SettingsDialog(AppSettings* appSettings)
     // Create the tab objects
     lockInputTab = new LockInputTab(this, &tempSettings, &hasUnsavedChanges);
     productivityTab = new ProductivityTab(this, &tempSettings, &hasUnsavedChanges);
+    privacyTab = new PrivacyTab(this, &tempSettings, &hasUnsavedChanges);
+    appearanceTab = new AppearanceTab(this, &tempSettings, &hasUnsavedChanges);
 }
 
 SettingsDialog::~SettingsDialog() {
@@ -70,6 +72,18 @@ SettingsDialog::~SettingsDialog() {
     if (productivityTab) {
         delete productivityTab;
         productivityTab = nullptr;
+    }
+
+    // Clean up the privacy tab object
+    if (privacyTab) {
+        delete privacyTab;
+        privacyTab = nullptr;
+    }
+
+    // Clean up the appearance tab object
+    if (appearanceTab) {
+        delete appearanceTab;
+        appearanceTab = nullptr;
     }
 }
 
@@ -243,7 +257,7 @@ void SettingsDialog::CreateTabDialogs() {
     
     hTabPrivacy = CreateDialogParam(GetModuleHandle(NULL),
                                    MAKEINTRESOURCE(IDD_TAB_PRIVACY),
-                                   hMainDialog, PrivacyTabProc, (LPARAM)this);
+                                   hMainDialog, PrivacyTab::DialogProc, (LPARAM)privacyTab);
     if (hTabPrivacy) {
         SetWindowPos(hTabPrivacy, NULL, rcTab.left, rcTab.top,
                     rcTab.right - rcTab.left, rcTab.bottom - rcTab.top,
@@ -252,7 +266,7 @@ void SettingsDialog::CreateTabDialogs() {
     
     hTabAppearance = CreateDialogParam(GetModuleHandle(NULL),
                                       MAKEINTRESOURCE(IDD_TAB_APPEARANCE),
-                                      hMainDialog, AppearanceTabProc, (LPARAM)this);
+                                      hMainDialog, AppearanceTab::DialogProc, (LPARAM)appearanceTab);
     if (hTabAppearance) {
         SetWindowPos(hTabAppearance, NULL, rcTab.left, rcTab.top,
                     rcTab.right - rcTab.left, rcTab.bottom - rcTab.top,
@@ -313,200 +327,16 @@ void SettingsDialog::RefreshCurrentTabControls() {
             }
             break;
         case TAB_PRIVACY:
-            if (hTabPrivacy) {
-                PrivacyTabProc(hTabPrivacy, WM_INITDIALOG, 0, (LPARAM)this);
+            if (privacyTab) {
+                privacyTab->RefreshControls();
             }
             break;
         case TAB_APPEARANCE:
-            if (hTabAppearance) {
-                AppearanceTabProc(hTabAppearance, WM_INITDIALOG, 0, (LPARAM)this);
+            if (appearanceTab) {
+                appearanceTab->RefreshControls();
             }
             break;
     }
-}
-
-INT_PTR CALLBACK SettingsDialog::PrivacyTabProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam) {
-    SettingsDialog* dialog = nullptr;
-    
-    if (message == WM_INITDIALOG) {
-        dialog = (SettingsDialog*)lParam;
-        SetWindowLongPtr(hDlg, GWLP_USERDATA, (LONG_PTR)dialog);
-    } else {
-        dialog = (SettingsDialog*)GetWindowLongPtr(hDlg, GWLP_USERDATA);
-    }
-    
-    if (!dialog) return FALSE;
-    
-    switch (message) {
-        case WM_INITDIALOG: {
-            // Initialize privacy settings from current settings
-            CheckDlgButton(hDlg, IDC_CHECK_START_WINDOWS, dialog->tempSettings.startWithWindows ? BST_CHECKED : BST_UNCHECKED);
-            
-            // Initialize boss key controls  
-            CheckDlgButton(hDlg, IDC_CHECK_BOSS_KEY, dialog->tempSettings.bossKeyEnabled ? BST_CHECKED : BST_UNCHECKED);
-            SetDlgItemTextA(hDlg, IDC_EDIT_HOTKEY_BOSS, dialog->tempSettings.bossKeyHotkey.c_str());
-            EnableWindow(GetDlgItem(hDlg, IDC_EDIT_HOTKEY_BOSS), dialog->tempSettings.bossKeyEnabled);
-            EnableWindow(GetDlgItem(hDlg, IDC_BTN_BOSS_KEY_TEST), dialog->tempSettings.bossKeyEnabled);
-            
-            return TRUE;
-        }
-        
-        case WM_COMMAND: {
-            switch (LOWORD(wParam)) {
-                case IDC_CHECK_START_WINDOWS: {
-                    bool oldValue = dialog->tempSettings.startWithWindows;
-                    dialog->tempSettings.startWithWindows = (IsDlgButtonChecked(hDlg, IDC_CHECK_START_WINDOWS) == BST_CHECKED);
-                    
-                    if (oldValue != dialog->tempSettings.startWithWindows) {
-                        dialog->hasUnsavedChanges = true;
-                    }
-                    break;
-                }
-                
-                // Boss key controls
-                case IDC_CHECK_BOSS_KEY: {
-                    bool oldValue = dialog->tempSettings.bossKeyEnabled;
-                    dialog->tempSettings.bossKeyEnabled = (IsDlgButtonChecked(hDlg, IDC_CHECK_BOSS_KEY) == BST_CHECKED);
-                    
-                    // Enable/disable related controls
-                    EnableWindow(GetDlgItem(hDlg, IDC_EDIT_HOTKEY_BOSS), dialog->tempSettings.bossKeyEnabled);
-                    EnableWindow(GetDlgItem(hDlg, IDC_BTN_BOSS_KEY_TEST), dialog->tempSettings.bossKeyEnabled);
-                    
-                    if (oldValue != dialog->tempSettings.bossKeyEnabled) {
-                        dialog->hasUnsavedChanges = true;
-                    }
-                    break;
-                }
-                
-                case IDC_EDIT_HOTKEY_BOSS:
-                    if (HIWORD(wParam) == EN_SETFOCUS && dialog->tempSettings.bossKeyEnabled) {
-                        // User clicked boss key textbox - start capture
-                        HWND hEdit = GetDlgItem(hDlg, IDC_EDIT_HOTKEY_BOSS);
-                        g_hotkeyManager.StartCapture(hDlg, hEdit, NULL, dialog->tempSettings.bossKeyHotkey);
-                    }
-                    break;
-                
-                case IDC_BTN_BOSS_KEY_TEST: {
-                    extern PrivacyManager g_privacyManager;
-                    if (g_privacyManager.IsBossKeyActive()) {
-                        g_privacyManager.DeactivateBossKey();
-                        MessageBoxA(hDlg, "Boss Key deactivated! All windows have been restored.", 
-                                   "Boss Key Test", MB_OK | MB_ICONINFORMATION);
-                    } else {
-                        MessageBoxA(hDlg, "Testing Boss Key... All windows will be hidden for 3 seconds!", 
-                                   "Boss Key Test", MB_OK | MB_ICONINFORMATION);
-                        g_privacyManager.ActivateBossKey();
-                        Sleep(3000);
-                        g_privacyManager.DeactivateBossKey();
-                    }
-                    break;
-                }
-            }
-            break;
-        }
-        
-        case WM_DESTROY: {
-            // Clean up font resources
-            HFONT hFont = (HFONT)GetProp(hDlg, TEXT("DialogFont"));
-            if (hFont) {
-                DeleteObject(hFont);
-                RemoveProp(hDlg, TEXT("DialogFont"));
-            }
-            return TRUE;
-        }
-    }
-    
-    return FALSE;
-}
-
-INT_PTR CALLBACK SettingsDialog::AppearanceTabProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam) {
-    SettingsDialog* dialog = nullptr;
-    
-    if (message == WM_INITDIALOG) {
-        dialog = (SettingsDialog*)lParam;
-        SetWindowLongPtr(hDlg, GWLP_USERDATA, (LONG_PTR)dialog);
-    } else {
-        dialog = (SettingsDialog*)GetWindowLongPtr(hDlg, GWLP_USERDATA);
-    }
-    
-    if (!dialog) return FALSE;
-    
-    switch (message) {
-        case WM_INITDIALOG: {
-            // Initialize overlay manager with current settings
-            g_overlayManager.SetStyle((OverlayStyle)dialog->tempSettings.overlayStyle);
-            g_overlayManager.InitializeRadioButtons(hDlg, IDC_RADIO_BLUR);
-            
-            // Set description
-            SetDlgItemTextA(hDlg, IDC_LABEL_OVERLAY_DESC, 
-                          "Choose the overlay style that appears when input is locked:");
-            
-            // Initialize notification style controls
-            SetDlgItemTextA(hDlg, IDC_LABEL_NOTIFY_DESC,
-                          "Choose notification style for system alerts:");
-            
-            // Set notification style radio buttons
-            switch (dialog->tempSettings.notificationStyle) {
-                case 0: // Custom
-                    CheckRadioButton(hDlg, IDC_RADIO_NOTIFY_CUSTOM, IDC_RADIO_NOTIFY_NONE, IDC_RADIO_NOTIFY_CUSTOM);
-                    break;
-                case 1: // Windows
-                    CheckRadioButton(hDlg, IDC_RADIO_NOTIFY_CUSTOM, IDC_RADIO_NOTIFY_NONE, IDC_RADIO_NOTIFY_WINDOWS);
-                    break;
-                case 2: // None
-                    CheckRadioButton(hDlg, IDC_RADIO_NOTIFY_CUSTOM, IDC_RADIO_NOTIFY_NONE, IDC_RADIO_NOTIFY_NONE);
-                    break;
-            }
-            
-            return TRUE;
-        }
-        
-        case WM_COMMAND: {
-            switch (LOWORD(wParam)) {
-                case IDC_RADIO_BLUR:
-                case IDC_RADIO_DIM:
-                case IDC_RADIO_BLACK:
-                case IDC_RADIO_NONE: {
-                    // Use modular overlay manager
-                    int oldStyle = dialog->tempSettings.overlayStyle;
-                    g_overlayManager.HandleRadioButtonClick(hDlg, LOWORD(wParam), IDC_RADIO_BLUR);
-                    dialog->tempSettings.overlayStyle = g_overlayManager.GetStyle();
-                    
-                    if (oldStyle != dialog->tempSettings.overlayStyle) {
-                        dialog->hasUnsavedChanges = true;
-                    }
-                    break;
-                }
-                
-                case IDC_RADIO_NOTIFY_CUSTOM:
-                case IDC_RADIO_NOTIFY_WINDOWS:
-                case IDC_RADIO_NOTIFY_NONE: {
-                    int oldNotifyStyle = dialog->tempSettings.notificationStyle;
-                    
-                    if (LOWORD(wParam) == IDC_RADIO_NOTIFY_CUSTOM) {
-                        dialog->tempSettings.notificationStyle = 0;
-                    } else if (LOWORD(wParam) == IDC_RADIO_NOTIFY_WINDOWS) {
-                        dialog->tempSettings.notificationStyle = 1;
-                    } else if (LOWORD(wParam) == IDC_RADIO_NOTIFY_NONE) {
-                        dialog->tempSettings.notificationStyle = 2;
-                    }
-                    
-                    // Update notification system style
-                    if (g_customNotifications) {
-                        g_customNotifications->SetStyle((NotificationStyle)dialog->tempSettings.notificationStyle);
-                    }
-                    
-                    if (oldNotifyStyle != dialog->tempSettings.notificationStyle) {
-                        dialog->hasUnsavedChanges = true;
-                    }
-                    break;
-                }
-            }
-            break;
-        }
-    }
-    
-    return FALSE;
 }
 
 void SettingsDialog::LoadSettings() {
@@ -583,17 +413,21 @@ void SettingsDialog::ReadUIValues() {
             tempSettings.notificationStyle = 0;
         } else if (IsDlgButtonChecked(hTabAppearance, IDC_RADIO_NOTIFY_WINDOWS) == BST_CHECKED) {
             tempSettings.notificationStyle = 1;
-        } else if (IsDlgButtonChecked(hTabAppearance, IDC_RADIO_NOTIFY_NONE) == BST_CHECKED) {
+        } else if (IsDlgButtonChecked(hTabAppearance, IDC_RADIO_NOTIFY_WINDOWS_NOTIF) == BST_CHECKED) {
             tempSettings.notificationStyle = 2;
+        } else if (IsDlgButtonChecked(hTabAppearance, IDC_RADIO_NOTIFY_NONE) == BST_CHECKED) {
+            tempSettings.notificationStyle = 3;
         }
     }
 }
 
 void SettingsDialog::ApplySettings() {
+    // Update global settings first so notifications respect new settings
+    *settings = tempSettings;
+    g_appSettings = tempSettings;
+    
     // Use modular settings core for applying settings
     if (g_settingsCore.ApplySettings(tempSettings, g_mainWindow)) {
-        *settings = tempSettings; // Update the original settings pointer
-        
         // Refresh input hooks based on new keyboard/mouse lock settings
         RefreshHooks();
         

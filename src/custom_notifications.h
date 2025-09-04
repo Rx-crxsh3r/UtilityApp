@@ -8,9 +8,10 @@
 #include <memory>
 
 enum NotificationStyle {
-    NOTIFY_STYLE_CUSTOM = 0,    // Our custom black popup
-    NOTIFY_STYLE_WINDOWS = 1,   // Windows native notifications
-    NOTIFY_STYLE_NONE = 2       // No notifications
+    NOTIFY_STYLE_CUSTOM = 0,               // Our custom black popup
+    NOTIFY_STYLE_WINDOWS = 1,              // Windows message boxes
+    NOTIFY_STYLE_WINDOWS_NOTIFICATIONS = 2, // Windows Action Center notifications
+    NOTIFY_STYLE_NONE = 3                  // No notifications
 };
 
 struct CustomNotification {

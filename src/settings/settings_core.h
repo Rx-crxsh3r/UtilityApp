@@ -34,7 +34,7 @@ struct AppSettings {
     int overlayStyle;      // 0=blur, 1=dim, 2=black, 3=none
     
     // Notifications  
-    int notificationStyle; // 0=custom, 1=windows, 2=none
+    int notificationStyle; // 0=custom, 1=windows, 2=windows_notifications, 3=none
     
     // Privacy
     bool hideFromTaskbar;
@@ -62,8 +62,8 @@ struct AppSettings {
         timerEnabled = false;
         whitelistedKeys = "Esc";
         whitelistEnabled = false;
-        overlayStyle = 0;
-        notificationStyle = 0; // Default to custom notifications
+        overlayStyle = 1; // Default to dim overlay
+        notificationStyle = 2; // Default to windows notifications
         hideFromTaskbar = true;
         startWithWindows = false;
         usbAlertEnabled = false; // Off by default
