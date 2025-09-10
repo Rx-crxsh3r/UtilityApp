@@ -126,6 +126,7 @@ public:
     // Change detection
     bool HasChanges(const AppSettings& current, const AppSettings& original);
     bool HasHotkeyChanges(const AppSettings& current, const AppSettings& original);
+    bool HasLockInputChanges(const AppSettings& current, const AppSettings& original);
     bool HasPrivacyChanges(const AppSettings& current, const AppSettings& original);
     bool HasProductivityChanges(const AppSettings& current, const AppSettings& original);
     bool HasOverlayChanges(const AppSettings& current, const AppSettings& original);

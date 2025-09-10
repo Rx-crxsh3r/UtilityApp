@@ -6,6 +6,11 @@
 #include "input_blocker.h"
 #include "features/privacy/privacy_manager.h"
 #include "features/productivity/productivity_manager.h"
+#include "features/lock_input/lock_input_tab.h"
+#include "features/appearance/appearance_tab.h"
+#include "features/data_management/data_tab.h"
+#include "ui/productivity_tab.h"
+#include "ui/privacy_tab.h"
 #include "custom_notifications.h"
 #include "notifications.h"
 #include <commctrl.h>
@@ -16,7 +21,6 @@
 // Global settings instances
 AppSettings g_appSettings;        // Current runtime settings (what the app is using)
 AppSettings g_persistentSettings; // Last saved settings (from registry/file)  
-AppSettings g_tempSettings;       // Current session temporary settings (UI state)
 bool g_settingsLoaded = false;
 
 // Global manager instances
@@ -158,7 +162,7 @@ INT_PTR CALLBACK SettingsDialog::DialogProc(HWND hDlg, UINT message, WPARAM wPar
                 int newTab = TabCtrl_GetCurSel(dialog->hTabControl);
                 if (newTab != dialog->currentTabIndex) {
                     // Check if there are unapplied changes (UI vs runtime)
-                    dialog->ReadUIValues(); // Get current UI state
+                    // Note: tempSettings is maintained by tab controls, no need to call ReadUIValues()
                     if (g_settingsCore.HasChanges(dialog->tempSettings, g_appSettings)) {
                         int result = MessageBoxA(dialog->hMainDialog,
                                                "You have unapplied changes. Do you want to apply them?",
@@ -652,14 +656,12 @@ void LoadSettingsFromFile() {
     if (g_settingsCore.LoadSettings(g_persistentSettings)) {
         // Successfully loaded saved settings from registry
         g_appSettings = g_persistentSettings;  // Apply to runtime
-        g_tempSettings = g_persistentSettings; // Initialize temp with saved settings
     } else {
         // No saved settings found (first time user or registry missing)
         // Use defaults for all three layers
         AppSettings defaults; // Uses constructor defaults
         g_persistentSettings = defaults;
         g_appSettings = defaults;
-        g_tempSettings = defaults;
     }
     
     g_settingsLoaded = true;

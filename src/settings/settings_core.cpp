@@ -206,6 +206,11 @@ bool SettingsCore::ApplySettings(const AppSettings& newSettings, const AppSettin
         anyChangesApplied = true;
     }
     
+    if (HasLockInputChanges(newSettings, previousSettings)) {
+        // Lock input settings are applied by updating global variables in SettingsDialog
+        anyChangesApplied = true;
+    }
+    
     if (HasPrivacyChanges(newSettings, previousSettings)) {
         success &= ApplyPrivacySettings(newSettings, mainWindow);
         anyChangesApplied = true;
@@ -278,6 +283,19 @@ bool SettingsCore::HasHotkeyChanges(const AppSettings& current, const AppSetting
     return current.lockHotkey != original.lockHotkey ||
            current.hotkeyModifiers != original.hotkeyModifiers ||
            current.hotkeyVirtualKey != original.hotkeyVirtualKey;
+}
+
+bool SettingsCore::HasLockInputChanges(const AppSettings& current, const AppSettings& original) {
+    return current.keyboardLockEnabled != original.keyboardLockEnabled ||
+           current.mouseLockEnabled != original.mouseLockEnabled ||
+           current.unlockMethod != original.unlockMethod ||
+           current.enableFailsafe != original.enableFailsafe ||
+           current.whitelistEnabled != original.whitelistEnabled ||
+           current.whitelistedKeys != original.whitelistedKeys ||
+           current.unlockPassword != original.unlockPassword ||
+           current.passwordEnabled != original.passwordEnabled ||
+           current.timerDuration != original.timerDuration ||
+           current.timerEnabled != original.timerEnabled;
 }
 
 bool SettingsCore::HasPrivacyChanges(const AppSettings& current, const AppSettings& original) {
