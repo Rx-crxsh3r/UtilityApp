@@ -53,7 +53,6 @@ if %errorlevel% neq 0 (
 echo [4/5] Compiling feature modules...
 gcc -c src\features\privacy\privacy_manager.cpp -o obj\privacy_manager.o
 gcc -c src\features\productivity\productivity_manager.cpp -o obj\productivity_manager.o
-gcc -c src\features\productivity\productivity_manager_simple.c -o obj\productivity_manager_simple.o
 if %errorlevel% neq 0 (
     echo ERROR: Failed to compile feature modules
     pause
@@ -83,7 +82,6 @@ gcc -o UtilityApp.exe ^
     obj\timer_manager.o ^
     obj\privacy_manager.o ^
     obj\productivity_manager.o ^
-    obj\productivity_manager_simple.o ^
     obj\resources.o ^
     -static-libgcc -static-libstdc++ -std=c++17 -mwindows -lgdi32 -luser32 -lshell32 -ladvapi32 -lcomctl32 -lstdc++ -lwinmm -lmsimg32 -ldwmapi
 
