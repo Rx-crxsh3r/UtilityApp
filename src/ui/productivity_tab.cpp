@@ -5,13 +5,11 @@
 #include "../settings.h"  // For SettingsDialog access
 #include "../settings/settings_core.h"
 #include "../features/productivity/productivity_manager.h"
-#include "../features/lock_input/hotkey_manager.h"
 #include "../resource.h"  // For control IDs
 #include <commctrl.h>
 
 // External references
 extern ProductivityManager g_productivityManager;
-extern HotkeyManager g_hotkeyManager;
 
 // Static callback for Windows dialog system
 INT_PTR CALLBACK ProductivityTab::DialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam) {
@@ -61,26 +59,6 @@ INT_PTR ProductivityTab::HandleMessage(HWND hDlg, UINT message, WPARAM wParam, L
             break;
         }
 
-        case WM_USER + 101: {
-            // Custom message from hotkey manager - boss key hotkey capture completed
-            // Read the updated hotkey from the text box and update tempSettings
-            char hotkeyBuffer[256];
-            GetDlgItemTextA(hTabDialog, IDC_EDIT_HOTKEY_BOSS, hotkeyBuffer, sizeof(hotkeyBuffer));
-            std::string newHotkey = std::string(hotkeyBuffer);
-            
-            // Check if hotkey actually changed
-            if (newHotkey != tempSettings->bossKeyHotkey) {
-                tempSettings->bossKeyHotkey = newHotkey;
-                
-                // Mark as having unsaved changes and update Apply button
-                *hasUnsavedChanges = true;
-                if (parentDialog) {
-                    parentDialog->UpdateButtonStates();
-                }
-            }
-            return TRUE;
-        }
-
         case WM_DESTROY: {
             // Clean up font resources
             HFONT hFont = (HFONT)GetProp(hDlg, TEXT("DialogFont"));
@@ -102,12 +80,6 @@ void ProductivityTab::InitializeControls() {
     CheckDlgButton(hTabDialog, IDC_CHECK_USB_ALERT, tempSettings->usbAlertEnabled ? BST_CHECKED : BST_UNCHECKED);
     CheckDlgButton(hTabDialog, IDC_CHECK_QUICK_LAUNCH, tempSettings->quickLaunchEnabled ? BST_CHECKED : BST_UNCHECKED);
     CheckDlgButton(hTabDialog, IDC_CHECK_TIMER, tempSettings->workBreakTimerEnabled ? BST_CHECKED : BST_UNCHECKED);
-
-    // Initialize boss key controls
-    CheckDlgButton(hTabDialog, IDC_CHECK_BOSS_KEY, tempSettings->bossKeyEnabled ? BST_CHECKED : BST_UNCHECKED);
-    SetDlgItemTextA(hTabDialog, IDC_EDIT_HOTKEY_BOSS, tempSettings->bossKeyHotkey.c_str());
-    EnableWindow(GetDlgItem(hTabDialog, IDC_EDIT_HOTKEY_BOSS), tempSettings->bossKeyEnabled);
-    EnableWindow(GetDlgItem(hTabDialog, IDC_BTN_BOSS_KEY_TEST), tempSettings->bossKeyEnabled);
 }
 
 void ProductivityTab::HandleControlCommand(WPARAM wParam, LPARAM lParam) {
@@ -153,40 +125,6 @@ void ProductivityTab::HandleControlCommand(WPARAM wParam, LPARAM lParam) {
             }
             break;
         }
-
-        case IDC_CHECK_BOSS_KEY: {
-            bool oldValue = tempSettings->bossKeyEnabled;
-            tempSettings->bossKeyEnabled = (IsDlgButtonChecked(hTabDialog, IDC_CHECK_BOSS_KEY) == BST_CHECKED);
-
-            // Update control states
-            EnableWindow(GetDlgItem(hTabDialog, IDC_EDIT_HOTKEY_BOSS), tempSettings->bossKeyEnabled);
-            EnableWindow(GetDlgItem(hTabDialog, IDC_BTN_BOSS_KEY_TEST), tempSettings->bossKeyEnabled);
-
-            if (oldValue != tempSettings->bossKeyEnabled) {
-                *hasUnsavedChanges = true;
-                // Notify parent dialog to update button states
-                if (parentDialog) {
-                    parentDialog->UpdateButtonStates();
-                }
-            }
-            break;
-        }
-
-        case IDC_EDIT_HOTKEY_BOSS:
-            if (HIWORD(wParam) == EN_SETFOCUS && tempSettings->bossKeyEnabled) {
-                // User clicked boss key textbox - start capture
-                HWND hEdit = GetDlgItem(hTabDialog, IDC_EDIT_HOTKEY_BOSS);
-                extern HotkeyManager g_hotkeyManager;
-                g_hotkeyManager.StartCapture(hTabDialog, hEdit, nullptr, tempSettings->bossKeyHotkey);
-            }
-            break;
-
-        case IDC_BTN_BOSS_KEY_TEST:
-            if (tempSettings->bossKeyEnabled) {
-                MessageBoxA(hTabDialog, "Boss key test not yet implemented in productivity tab.\nPlease use the Privacy tab for boss key testing.",
-                           "Feature Not Available", MB_OK | MB_ICONINFORMATION);
-            }
-            break;
 
         case IDC_BTN_TIMER_CONFIG:
             ShowTimerConfig();

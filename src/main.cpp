@@ -1,9 +1,7 @@
 // src/main.cpp
 
 #include <windows.h>
-#include <algorithm>
 #include <string>
-#include <cctype>
 #include "resource.h"
 #include "tray_icon.h"
 #include "input_blocker.h"
@@ -368,72 +366,84 @@ bool ParseHotkeyString(const std::string& hotkeyStr, UINT& modifiers, UINT& virt
     
     if (hotkeyStr.empty()) return false;
     
-    // Convert to uppercase for easier parsing
-    std::string upperStr = hotkeyStr;
-    std::transform(upperStr.begin(), upperStr.end(), upperStr.begin(), ::toupper);
+    // Use const reference to avoid copy
+    const std::string& str = hotkeyStr;
+    size_t len = str.length();
     
-    // Parse modifiers
-    if (upperStr.find("CTRL") != std::string::npos) {
-        modifiers |= MOD_CONTROL;
-    }
-    if (upperStr.find("ALT") != std::string::npos) {
-        modifiers |= MOD_ALT;
-    }
-    if (upperStr.find("SHIFT") != std::string::npos) {
-        modifiers |= MOD_SHIFT;
-    }
-    if (upperStr.find("WIN") != std::string::npos) {
-        modifiers |= MOD_WIN;
+    // Parse modifiers using more efficient string search
+    size_t pos = 0;
+    while (pos < len) {
+        if (str[pos] == 'C' && pos + 3 < len && 
+            str[pos+1] == 't' && str[pos+2] == 'r' && str[pos+3] == 'l') {
+            modifiers |= MOD_CONTROL;
+            pos += 4;
+            if (pos < len && str[pos] == '+') pos++;
+        } else if (str[pos] == 'A' && pos + 2 < len && 
+                   str[pos+1] == 'l' && str[pos+2] == 't') {
+            modifiers |= MOD_ALT;
+            pos += 3;
+            if (pos < len && str[pos] == '+') pos++;
+        } else if (str[pos] == 'S' && pos + 4 < len && 
+                   str[pos+1] == 'h' && str[pos+2] == 'i' && str[pos+3] == 'f' && str[pos+4] == 't') {
+            modifiers |= MOD_SHIFT;
+            pos += 5;
+            if (pos < len && str[pos] == '+') pos++;
+        } else if (str[pos] == 'W' && pos + 2 < len && 
+                   str[pos+1] == 'i' && str[pos+2] == 'n') {
+            modifiers |= MOD_WIN;
+            pos += 3;
+            if (pos < len && str[pos] == '+') pos++;
+        } else {
+            break; // Found the main key
+        }
     }
     
-    // Find the main key (after the last '+')
-    size_t lastPlus = upperStr.find_last_of('+');
-    std::string keyStr;
-    if (lastPlus != std::string::npos) {
-        keyStr = upperStr.substr(lastPlus + 1);
-    } else {
-        keyStr = upperStr; // No modifiers, just the key
-    }
+    // Parse the main key from the remaining string
+    if (pos >= len) return false;
     
-    // Parse virtual key
-    if (keyStr.length() == 1 && keyStr[0] >= 'A' && keyStr[0] <= 'Z') {
-        virtualKey = keyStr[0]; // Letter key
-    } else if (keyStr.length() == 1 && keyStr[0] >= '0' && keyStr[0] <= '9') {
-        virtualKey = keyStr[0]; // Number key
-    } else if (keyStr.substr(0, 1) == "F" && keyStr.length() >= 2) {
+    std::string keyStr = str.substr(pos);
+    
+    // Optimize key parsing with direct character checks
+    if (keyStr.length() == 1) {
+        char ch = keyStr[0];
+        if ((ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9')) {
+            virtualKey = ch;
+            return true;
+        }
+    } else if (keyStr[0] == 'F' && keyStr.length() >= 2 && keyStr.length() <= 3) {
         // Function key (F1-F12)
-        int funcNum = std::atoi(keyStr.substr(1).c_str());
+        int funcNum = 0;
+        if (keyStr.length() == 2) {
+            funcNum = keyStr[1] - '0';
+        } else {
+            funcNum = (keyStr[1] - '0') * 10 + (keyStr[2] - '0');
+        }
         if (funcNum >= 1 && funcNum <= 12) {
             virtualKey = VK_F1 + (funcNum - 1);
-        }
-    } else {
-        // Special keys
-        if (keyStr == "ESC" || keyStr == "ESCAPE") {
-            virtualKey = VK_ESCAPE;
-        } else if (keyStr == "SPACE") {
-            virtualKey = VK_SPACE;
-        } else if (keyStr == "ENTER" || keyStr == "RETURN") {
-            virtualKey = VK_RETURN;
-        } else if (keyStr == "TAB") {
-            virtualKey = VK_TAB;
-        } else if (keyStr == "BACKSPACE") {
-            virtualKey = VK_BACK;
-        } else if (keyStr == "DELETE" || keyStr == "DEL") {
-            virtualKey = VK_DELETE;
-        } else if (keyStr == "INSERT" || keyStr == "INS") {
-            virtualKey = VK_INSERT;
-        } else if (keyStr == "HOME") {
-            virtualKey = VK_HOME;
-        } else if (keyStr == "END") {
-            virtualKey = VK_END;
-        } else if (keyStr == "PAGE_UP" || keyStr == "PGUP") {
-            virtualKey = VK_PRIOR;
-        } else if (keyStr == "PAGE_DOWN" || keyStr == "PGDN") {
-            virtualKey = VK_NEXT;
-        } else {
-            return false; // Unrecognized key
+            return true;
         }
     }
     
-    return virtualKey != 0;
+    // Special keys - use a more efficient lookup
+    static const struct {
+        const char* name;
+        UINT vk;
+    } specialKeys[] = {
+        {"ESC", VK_ESCAPE}, {"ESCAPE", VK_ESCAPE},
+        {"SPACE", VK_SPACE}, {"ENTER", VK_RETURN}, {"RETURN", VK_RETURN},
+        {"TAB", VK_TAB}, {"BACKSPACE", VK_BACK}, {"DELETE", VK_DELETE},
+        {"DEL", VK_DELETE}, {"INSERT", VK_INSERT}, {"INS", VK_INSERT},
+        {"HOME", VK_HOME}, {"END", VK_END},
+        {"PAGEUP", VK_PRIOR}, {"PAGEDOWN", VK_NEXT},
+        {"PGUP", VK_PRIOR}, {"PGDN", VK_NEXT}
+    };
+    
+    for (const auto& key : specialKeys) {
+        if (keyStr == key.name) {
+            virtualKey = key.vk;
+            return true;
+        }
+    }
+    
+    return false;
 }

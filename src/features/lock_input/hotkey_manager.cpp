@@ -114,51 +114,86 @@ bool HotkeyManager::IsHotkeyAvailable(UINT modifiers, UINT virtualKey) {
 }
 
 std::string HotkeyManager::VirtualKeyToString(UINT vkCode) {
-    char keyName[32];
-    
+    // Optimize for common cases - avoid sprintf_s overhead
     if (vkCode >= 'A' && vkCode <= 'Z') {
-        sprintf_s(keyName, "%c", (char)vkCode);
+        return std::string(1, (char)vkCode);
     } else if (vkCode >= '0' && vkCode <= '9') {
-        sprintf_s(keyName, "%c", (char)vkCode);
-    } else {
-        switch (vkCode) {
-            case VK_ESCAPE: strcpy_s(keyName, "Esc"); break;
-            case VK_SPACE: strcpy_s(keyName, "Space"); break;
-            case VK_RETURN: strcpy_s(keyName, "Enter"); break;
-            case VK_TAB: strcpy_s(keyName, "Tab"); break;
-            case VK_F1: case VK_F2: case VK_F3: case VK_F4: case VK_F5: case VK_F6:
-            case VK_F7: case VK_F8: case VK_F9: case VK_F10: case VK_F11: case VK_F12:
-                sprintf_s(keyName, "F%d", vkCode - VK_F1 + 1);
-                break;
-            default:
-                sprintf_s(keyName, "Key%d", vkCode);
-                break;
-        }
+        return std::string(1, (char)vkCode);
     }
     
-    return std::string(keyName);
+    // Use static strings for common keys to avoid allocations
+    switch (vkCode) {
+        case VK_ESCAPE: return "Esc";
+        case VK_SPACE: return "Space";
+        case VK_RETURN: return "Enter";
+        case VK_TAB: return "Tab";
+        case VK_BACK: return "Backspace";
+        case VK_DELETE: return "Delete";
+        case VK_HOME: return "Home";
+        case VK_END: return "End";
+        case VK_PRIOR: return "PageUp";
+        case VK_NEXT: return "PageDown";
+        case VK_LEFT: return "Left";
+        case VK_RIGHT: return "Right";
+        case VK_UP: return "Up";
+        case VK_DOWN: return "Down";
+        case VK_F1: return "F1";
+        case VK_F2: return "F2";
+        case VK_F3: return "F3";
+        case VK_F4: return "F4";
+        case VK_F5: return "F5";
+        case VK_F6: return "F6";
+        case VK_F7: return "F7";
+        case VK_F8: return "F8";
+        case VK_F9: return "F9";
+        case VK_F10: return "F10";
+        case VK_F11: return "F11";
+        case VK_F12: return "F12";
+        default: {
+            // Only use sprintf_s for rare cases
+            char keyName[16];
+            sprintf_s(keyName, sizeof(keyName), "Key%u", vkCode);
+            return std::string(keyName);
+        }
+    }
 }
 
 std::string HotkeyManager::FormatHotkey(bool ctrl, bool shift, bool alt, bool win, const std::string& key) {
-    std::string result = "";
+    // Pre-calculate required size to avoid reallocations
+    size_t size = key.length();
+    if (ctrl) size += 5;  // "Ctrl+"
+    if (shift) size += 6; // "Shift+"
+    if (alt) size += 4;   // "Alt+"
+    if (win) size += 4;   // "Win+"
+    
+    std::string result;
+    result.reserve(size);
+    
+    // Build the string efficiently
     if (ctrl) result += "Ctrl+";
     if (shift) result += "Shift+";
     if (alt) result += "Alt+";
     if (win) result += "Win+";
     result += key;
+    
     return result;
 }
 
 LRESULT CALLBACK HotkeyManager::HotkeyHookProc(int nCode, WPARAM wParam, LPARAM lParam) {
-    if (nCode != HC_ACTION || !instance || !instance->isCapturing) {
+    // Early return for non-action codes or when not capturing
+    if (nCode != HC_ACTION) {
         return CallNextHookEx(instance ? instance->hKeyboardHook : NULL, nCode, wParam, lParam);
+    }
+    
+    if (!instance || !instance->isCapturing) {
+        return CallNextHookEx(instance->hKeyboardHook, nCode, wParam, lParam);
     }
     
     KBDLLHOOKSTRUCT* pKbd = (KBDLLHOOKSTRUCT*)lParam;
     bool isKeyDown = (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN);
     bool isKeyUp = (wParam == WM_KEYUP || wParam == WM_SYSKEYUP);
     
-    // Handle modifier keys
+    // Handle modifier keys with early returns
     if (pKbd->vkCode == VK_CONTROL || pKbd->vkCode == VK_LCONTROL || pKbd->vkCode == VK_RCONTROL) {
         instance->ctrlPressed = isKeyDown;
     } else if (pKbd->vkCode == VK_SHIFT || pKbd->vkCode == VK_LSHIFT || pKbd->vkCode == VK_RSHIFT) {
@@ -181,15 +216,15 @@ LRESULT CALLBACK HotkeyManager::HotkeyHookProc(int nCode, WPARAM wParam, LPARAM 
             return 1; // Block the key
         }
         
-        // Non-modifier key pressed - finalize
-        std::string keyName = VirtualKeyToString(pKbd->vkCode);
-        instance->currentInput = FormatHotkey(instance->ctrlPressed, instance->shiftPressed, 
-                                             instance->altPressed, instance->winPressed, keyName);
+        // Non-modifier key pressed - finalize capture
+        std::string keyName = instance->VirtualKeyToString(pKbd->vkCode);
+        instance->currentInput = instance->FormatHotkey(instance->ctrlPressed, instance->shiftPressed, 
+                                                       instance->altPressed, instance->winPressed, keyName);
         instance->EndCapture(true);
         return 1; // Block this key
     }
     
-    // Update display for modifiers
+    // Update display only for modifier key events
     if (isKeyDown || isKeyUp) {
         instance->UpdateDisplay();
     }
