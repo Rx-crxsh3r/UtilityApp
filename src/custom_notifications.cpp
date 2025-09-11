@@ -2,6 +2,8 @@
 // Custom lightweight notification system implementation
 
 #include "custom_notifications.h"
+#include "audio_manager.h"
+#include "settings.h"
 #include <windows.h>
 #include <dwmapi.h>
 
@@ -105,9 +107,14 @@ void CustomNotificationSystem::ShowNotification(const std::string& title, const 
     // NOTIFY_STYLE_CUSTOM - use custom notification system
     auto notif = std::make_unique<CustomNotification>(title, message, duration, level);
     
-    // Play sound for error notifications only
-    if (level == NOTIFY_LEVEL_ERROR) {
-        PlaySound(TEXT("resources\\notif.wav"), NULL, SND_FILENAME | SND_ASYNC);
+    // Play sound for error notifications only when using CUSTOM notification style
+    extern AppSettings g_appSettings;
+    if (level == NOTIFY_LEVEL_ERROR && g_appSettings.notificationStyle == NOTIFY_STYLE_CUSTOM) {
+        // Use AudioManager for consistent sound playback
+        extern AudioManager* g_audioManager;
+        if (g_audioManager) {
+            g_audioManager->PlayNotificationSound(SOUND_USB_DEVICE); // Reuse USB sound for errors
+        }
     }
     
     // Position new notification
@@ -368,6 +375,13 @@ void InitializeCustomNotifications() {
     if (!g_customNotifications) {
         g_customNotifications = CustomNotificationSystem::GetInstance();
         g_customNotifications->Initialize();
+        
+        // Synchronize with loaded settings
+        extern bool g_settingsLoaded;
+        if (g_settingsLoaded) {
+            extern AppSettings g_appSettings;
+            g_customNotifications->SetStyle((NotificationStyle)g_appSettings.notificationStyle);
+        }
     }
 }
 

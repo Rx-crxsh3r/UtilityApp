@@ -112,7 +112,7 @@ test_*
 *_test.exe
 
 # Build directories
-build/
+build/*
 bin/
 obj/
 dist/

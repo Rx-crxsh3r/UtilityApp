@@ -145,13 +145,18 @@ INT_PTR CALLBACK SettingsDialog::DialogProc(HWND hDlg, UINT message, WPARAM wPar
             tie.pszText = (LPSTR)"Data";
             TabCtrl_InsertItem(dialog->hTabControl, 4, &tie);
             
+            // Load settings BEFORE creating tabs to ensure UI shows correct values
+            dialog->LoadSettings();
+            
             // Create tab dialogs
             dialog->CreateTabDialogs();
+            
+            // Refresh all tabs to ensure UI reflects loaded settings
+            dialog->RefreshAllTabs();
             
             // Set the tab control to show the first tab and switch to it
             TabCtrl_SetCurSel(dialog->hTabControl, 0);
             dialog->SwitchTab(0); // Show first tab (Lock & Input)
-            dialog->LoadSettings();
             
             return TRUE;
         }
@@ -401,9 +406,20 @@ void SettingsDialog::RefreshCurrentTabControls() {
 }
 
 void SettingsDialog::LoadSettings() {
-    tempSettings = *settings;
+    // Load settings from persistent storage first
+    if (g_settingsCore.LoadSettings(tempSettings)) {
+        // Successfully loaded saved settings - use them
+        g_persistentSettings = tempSettings;
+        g_appSettings = tempSettings;
+    } else {
+        // No saved settings found - use defaults
+        tempSettings = AppSettings(); // Constructor provides defaults
+        g_persistentSettings = tempSettings;
+        g_appSettings = tempSettings;
+    }
+    
     hasUnsavedChanges = false;
-    UpdateButtonStates(); // Ensure button states are properly initialized
+    UpdateButtonStates();
 }
 
 void SettingsDialog::RefreshAllTabs() {

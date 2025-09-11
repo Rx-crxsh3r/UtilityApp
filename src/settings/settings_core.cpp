@@ -572,3 +572,4 @@ bool SettingsCore::ApplyNotificationSettings(const AppSettings& settings) {
     
     return true;
 }
+
