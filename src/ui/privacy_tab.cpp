@@ -66,6 +66,26 @@ INT_PTR PrivacyTab::HandleMessage(HWND hDlg, UINT message, WPARAM wParam, LPARAM
             break;
         }
 
+        case WM_USER + 101: {
+            // Custom message from hotkey manager - boss key hotkey capture completed
+            // Read the updated hotkey from the text box and update tempSettings
+            char hotkeyBuffer[256];
+            GetDlgItemTextA(hDlg, IDC_EDIT_HOTKEY_BOSS, hotkeyBuffer, sizeof(hotkeyBuffer));
+            std::string newHotkey = std::string(hotkeyBuffer);
+            
+            // Check if hotkey actually changed
+            if (newHotkey != tempSettings->bossKeyHotkey) {
+                tempSettings->bossKeyHotkey = newHotkey;
+                
+                // Mark as having unsaved changes and update Apply button
+                *hasUnsavedChanges = true;
+                if (parentDialog) {
+                    parentDialog->UpdateButtonStates();
+                }
+            }
+            return TRUE;
+        }
+
         case WM_DESTROY: {
             // Clean up font resources
             HFONT hFont = (HFONT)GetProp(hDlg, TEXT("DialogFont"));

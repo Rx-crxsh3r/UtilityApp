@@ -45,7 +45,7 @@ bool PrivacyManager::ApplyPrivacySettings(HWND window, DWORD features) {
     
     // Apply boss key
     if (features & PRIVACY_BOSS_KEY) {
-        success &= EnableBossKey(bossKeyModifiers, bossKeyVirtualKey);
+        success &= SetBossKeyHotkey(bossKeyModifiers, bossKeyVirtualKey);
     }
     
     return success;

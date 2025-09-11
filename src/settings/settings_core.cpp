@@ -489,14 +489,14 @@ bool SettingsCore::ApplyPrivacySettings(const AppSettings& settings, HWND mainWi
             if (ParseHotkeyString(settings.bossKeyHotkey, modifiers, virtualKey)) {
                 // Check if the hotkey is available before trying to register
                 if (g_hotkeyManager.IsHotkeyAvailable(modifiers, virtualKey)) {
-                    bool bossKeyResult = g_privacyManager.EnableBossKey(modifiers, virtualKey);
+                    bool bossKeyResult = g_privacyManager.SetBossKeyHotkey(modifiers, virtualKey);
                     // Don't fail the entire operation if boss key registration fails
                     // Boss key is secondary functionality - main settings should still apply
                     // success &= bossKeyResult;  // Commented out to prevent failure
                 } else {
                     // Hotkey is not available, try fallback
                     if (g_hotkeyManager.IsHotkeyAvailable(MOD_CONTROL | MOD_ALT, VK_F11)) {
-                        bool bossKeyResult = g_privacyManager.EnableBossKey(MOD_CONTROL | MOD_ALT, VK_F11);
+                        bool bossKeyResult = g_privacyManager.SetBossKeyHotkey(MOD_CONTROL | MOD_ALT, VK_F11);
                         // Don't fail the entire operation if boss key registration fails
                         // success &= bossKeyResult;  // Commented out to prevent failure
                     }
@@ -505,7 +505,7 @@ bool SettingsCore::ApplyPrivacySettings(const AppSettings& settings, HWND mainWi
             } else {
                 // Fallback to default if parsing fails (Ctrl+Alt+F11)
                 if (g_hotkeyManager.IsHotkeyAvailable(MOD_CONTROL | MOD_ALT, VK_F11)) {
-                    bool bossKeyResult = g_privacyManager.EnableBossKey(MOD_CONTROL | MOD_ALT, VK_F11);
+                    bool bossKeyResult = g_privacyManager.SetBossKeyHotkey(MOD_CONTROL | MOD_ALT, VK_F11);
                     // Don't fail the entire operation if boss key registration fails
                     // success &= bossKeyResult;  // Commented out to prevent failure
                 }

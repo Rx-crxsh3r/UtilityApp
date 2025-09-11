@@ -65,7 +65,7 @@ struct AppSettings {
         overlayStyle = 1; // Default to dim overlay
         notificationStyle = 0; // Default to custom notifications
         hideFromTaskbar = true;
-        startWithWindows = false;
+        startWithWindows = true;
         usbAlertEnabled = false; // Off by default
         quickLaunchEnabled = false; // Off by default (optimized)
         workBreakTimerEnabled = false; // Off by default
@@ -95,7 +95,8 @@ struct AppSettings {
                usbAlertEnabled == other.usbAlertEnabled &&
                quickLaunchEnabled == other.quickLaunchEnabled &&
                workBreakTimerEnabled == other.workBreakTimerEnabled &&
-               bossKeyEnabled == other.bossKeyEnabled;
+               bossKeyEnabled == other.bossKeyEnabled &&
+               bossKeyHotkey == other.bossKeyHotkey;
     }
     
     bool operator!=(const AppSettings& other) const {

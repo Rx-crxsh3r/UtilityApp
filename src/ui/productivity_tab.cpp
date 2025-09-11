@@ -5,11 +5,13 @@
 #include "../settings.h"  // For SettingsDialog access
 #include "../settings/settings_core.h"
 #include "../features/productivity/productivity_manager.h"
+#include "../features/lock_input/hotkey_manager.h"
 #include "../resource.h"  // For control IDs
 #include <commctrl.h>
 
 // External references
 extern ProductivityManager g_productivityManager;
+extern HotkeyManager g_hotkeyManager;
 
 // Static callback for Windows dialog system
 INT_PTR CALLBACK ProductivityTab::DialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam) {
@@ -57,6 +59,26 @@ INT_PTR ProductivityTab::HandleMessage(HWND hDlg, UINT message, WPARAM wParam, L
         case WM_COMMAND: {
             HandleControlCommand(wParam, lParam);
             break;
+        }
+
+        case WM_USER + 101: {
+            // Custom message from hotkey manager - boss key hotkey capture completed
+            // Read the updated hotkey from the text box and update tempSettings
+            char hotkeyBuffer[256];
+            GetDlgItemTextA(hTabDialog, IDC_EDIT_HOTKEY_BOSS, hotkeyBuffer, sizeof(hotkeyBuffer));
+            std::string newHotkey = std::string(hotkeyBuffer);
+            
+            // Check if hotkey actually changed
+            if (newHotkey != tempSettings->bossKeyHotkey) {
+                tempSettings->bossKeyHotkey = newHotkey;
+                
+                // Mark as having unsaved changes and update Apply button
+                *hasUnsavedChanges = true;
+                if (parentDialog) {
+                    parentDialog->UpdateButtonStates();
+                }
+            }
+            return TRUE;
         }
 
         case WM_DESTROY: {
@@ -154,9 +176,8 @@ void ProductivityTab::HandleControlCommand(WPARAM wParam, LPARAM lParam) {
             if (HIWORD(wParam) == EN_SETFOCUS && tempSettings->bossKeyEnabled) {
                 // User clicked boss key textbox - start capture
                 HWND hEdit = GetDlgItem(hTabDialog, IDC_EDIT_HOTKEY_BOSS);
-                // Note: This would need hotkey capture functionality similar to privacy tab
-                MessageBoxA(hTabDialog, "Boss key hotkey capture not yet implemented in productivity tab.\nPlease use the Privacy tab for boss key configuration.",
-                           "Feature Not Available", MB_OK | MB_ICONINFORMATION);
+                extern HotkeyManager g_hotkeyManager;
+                g_hotkeyManager.StartCapture(hTabDialog, hEdit, nullptr, tempSettings->bossKeyHotkey);
             }
             break;
 
