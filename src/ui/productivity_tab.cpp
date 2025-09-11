@@ -132,6 +132,41 @@ void ProductivityTab::HandleControlCommand(WPARAM wParam, LPARAM lParam) {
             break;
         }
 
+        case IDC_CHECK_BOSS_KEY: {
+            bool oldValue = tempSettings->bossKeyEnabled;
+            tempSettings->bossKeyEnabled = (IsDlgButtonChecked(hTabDialog, IDC_CHECK_BOSS_KEY) == BST_CHECKED);
+
+            // Update control states
+            EnableWindow(GetDlgItem(hTabDialog, IDC_EDIT_HOTKEY_BOSS), tempSettings->bossKeyEnabled);
+            EnableWindow(GetDlgItem(hTabDialog, IDC_BTN_BOSS_KEY_TEST), tempSettings->bossKeyEnabled);
+
+            if (oldValue != tempSettings->bossKeyEnabled) {
+                *hasUnsavedChanges = true;
+                // Notify parent dialog to update button states
+                if (parentDialog) {
+                    parentDialog->UpdateButtonStates();
+                }
+            }
+            break;
+        }
+
+        case IDC_EDIT_HOTKEY_BOSS:
+            if (HIWORD(wParam) == EN_SETFOCUS && tempSettings->bossKeyEnabled) {
+                // User clicked boss key textbox - start capture
+                HWND hEdit = GetDlgItem(hTabDialog, IDC_EDIT_HOTKEY_BOSS);
+                // Note: This would need hotkey capture functionality similar to privacy tab
+                MessageBoxA(hTabDialog, "Boss key hotkey capture not yet implemented in productivity tab.\nPlease use the Privacy tab for boss key configuration.",
+                           "Feature Not Available", MB_OK | MB_ICONINFORMATION);
+            }
+            break;
+
+        case IDC_BTN_BOSS_KEY_TEST:
+            if (tempSettings->bossKeyEnabled) {
+                MessageBoxA(hTabDialog, "Boss key test not yet implemented in productivity tab.\nPlease use the Privacy tab for boss key testing.",
+                           "Feature Not Available", MB_OK | MB_ICONINFORMATION);
+            }
+            break;
+
         case IDC_BTN_TIMER_CONFIG:
             ShowTimerConfig();
             break;

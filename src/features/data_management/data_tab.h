@@ -45,4 +45,5 @@ public:
 
     // UI Updates
     void UpdateUI(HWND hDlg);
+    void RefreshControls();
 };

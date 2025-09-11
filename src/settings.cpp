@@ -437,7 +437,7 @@ void SettingsDialog::RefreshAllTabs() {
         appearanceTab->RefreshControls();
     }
     if (dataTab) {
-        dataTab->UpdateUI(hTabData);
+        dataTab->RefreshControls();
     }
 }
 

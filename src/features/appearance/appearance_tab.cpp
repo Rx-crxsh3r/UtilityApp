@@ -108,6 +108,10 @@ void AppearanceTab::OnOverlayStyleChanged(HWND hDlg, WPARAM wParam) {
 
     if (oldStyle != tempSettings->overlayStyle) {
         *hasUnsavedChanges = true;
+        // Notify parent dialog to update button states
+        if (parentDialog) {
+            parentDialog->UpdateButtonStates();
+        }
     }
 }
 
@@ -135,6 +139,10 @@ void AppearanceTab::OnNotificationStyleChanged(HWND hDlg, WPARAM wParam) {
 
     if (oldNotifyStyle != tempSettings->notificationStyle) {
         *hasUnsavedChanges = true;
+        // Notify parent dialog to update button states
+        if (parentDialog) {
+            parentDialog->UpdateButtonStates();
+        }
     }
 }
 

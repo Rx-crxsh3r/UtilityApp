@@ -164,6 +164,13 @@ void DataTab::UpdateUI(HWND hDlg) {
     EnableWindow(GetDlgItem(hDlg, IDC_BTN_EXPORT_SETTINGS), TRUE);
 }
 
+void DataTab::RefreshControls() {
+    if (hTab) {
+        // Re-initialize all controls with current tempSettings values
+        UpdateUI(hTab);
+    }
+}
+
 std::string DataTab::GetDownloadsPath() {
     char path[MAX_PATH];
     if (SUCCEEDED(SHGetFolderPathA(NULL, CSIDL_PROFILE, NULL, 0, path))) {
