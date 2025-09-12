@@ -8,6 +8,7 @@
 #include "../features/appearance/overlay_manager.h"
 #include "../features/lock_input/hotkey_manager.h"
 #include "../features/privacy/privacy_manager.h"
+#include "../utils/hotkey_utils.h"
 #include "../features/productivity/productivity_manager.h"
 #include <fstream>
 
@@ -568,7 +569,6 @@ bool SettingsCore::ApplyPrivacySettings(const AppSettings& settings, HWND mainWi
         if (settings.bossKeyEnabled) {
             // Parse boss key hotkey string to get modifiers and virtual key
             UINT modifiers, virtualKey;
-            extern bool ParseHotkeyString(const std::string& hotkeyStr, UINT& modifiers, UINT& virtualKey);
             extern HotkeyManager g_hotkeyManager;
             
             if (ParseHotkeyString(settings.bossKeyHotkey, modifiers, virtualKey)) {

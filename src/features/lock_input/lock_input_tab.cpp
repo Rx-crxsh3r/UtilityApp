@@ -6,6 +6,7 @@
 #include "../../settings/settings_core.h"
 #include "hotkey_manager.h"
 #include "../../resource.h"  // For control IDs
+#include "../../utils/hotkey_utils.h"
 #include <commctrl.h>
 
 // External references
@@ -63,7 +64,6 @@ INT_PTR LockInputTab::HandleMessage(HWND hDlg, UINT message, WPARAM wParam, LPAR
                 tempSettings->lockHotkey = newHotkey;
                 
                 // Parse hotkey to extract modifiers and virtual key
-                extern bool ParseHotkeyString(const std::string& hotkeyStr, UINT& modifiers, UINT& virtualKey);
                 ParseHotkeyString(tempSettings->lockHotkey, 
                                 (UINT&)tempSettings->hotkeyModifiers, 
                                 (UINT&)tempSettings->hotkeyVirtualKey);

@@ -109,6 +109,9 @@ public:
     bool ShowDialog(HWND parent);
     static INT_PTR CALLBACK DialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
     
+    // Dialog access
+    HWND GetMainDialogHandle() const { return hMainDialog; }
+    
     // Tab management
     void SwitchTab(int tabIndex);
     void CreateTabDialogs();

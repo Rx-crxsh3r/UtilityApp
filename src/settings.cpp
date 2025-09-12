@@ -663,6 +663,16 @@ void SaveSettingsToFile() {
 }
 
 void ShowSettingsDialog(HWND parent) {
+    // Prevent multiple settings dialogs from opening simultaneously
+    if (g_currentDialog != nullptr) {
+        // If a dialog is already open, bring it to the foreground
+        HWND hDialog = g_currentDialog->GetMainDialogHandle();
+        if (hDialog) {
+            SetForegroundWindow(hDialog);
+        }
+        return;
+    }
+    
     SettingsDialog dialog(&g_appSettings);
     dialog.ShowDialog(parent);
 }

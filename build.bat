@@ -26,6 +26,7 @@ gcc -c src\audio_manager.cpp -o build\audio_manager.o
 gcc -c src\custom_notifications.cpp -o build\custom_notifications.o
 gcc -c src\notifications.cpp -o build\notifications.o
 gcc -c src\overlay.cpp -o build\overlay.o
+gcc -c src\utils\hotkey_utils.cpp -o build\hotkey_utils.o
 gcc -c src\features\lock_input\lock_input_tab.cpp -o build\lock_input_tab.o
 gcc -c src\ui\productivity_tab.cpp -o build\productivity_tab.o
 gcc -c src\ui\privacy_tab.cpp -o build\privacy_tab.o
@@ -69,6 +70,7 @@ gcc -o UtilityApp.exe ^
     build\custom_notifications.o ^
     build\notifications.o ^
     build\overlay.o ^
+    build\hotkey_utils.o ^
     build\lock_input_tab.o ^
     build\productivity_tab.o ^
     build\privacy_tab.o ^
