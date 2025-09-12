@@ -118,6 +118,7 @@ public:
     void RefreshCurrentTabControls();
     void RefreshAllTabs();
     void UpdateButtonStates();
+    void RefreshUI(); // Centralized UI refresh
     
     // Tab dialog procedures
     static INT_PTR CALLBACK ProductivityTabProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);

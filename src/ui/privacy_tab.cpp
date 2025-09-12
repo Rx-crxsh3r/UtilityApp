@@ -8,10 +8,6 @@
 #include "../features/lock_input/hotkey_manager.h"
 #include <commctrl.h>
 
-// Global manager instances
-extern PrivacyManager g_privacyManager;
-extern HotkeyManager g_hotkeyManager;
-
 PrivacyTab::PrivacyTab(SettingsDialog* parent, AppSettings* settings, bool* unsavedChanges)
     : parentDialog(parent), tempSettings(settings), hasUnsavedChanges(unsavedChanges), hTab(nullptr) {
 }

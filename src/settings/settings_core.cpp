@@ -10,13 +10,34 @@
 #include "../features/privacy/privacy_manager.h"
 #include "../features/productivity/productivity_manager.h"
 #include <fstream>
-#include <sstream>
 
 // Global instance
 SettingsCore g_settingsCore;
 
 // Registry constants
 const char* SettingsCore::REGISTRY_KEY = "SOFTWARE\\UtilityApp\\Core";
+const char* SettingsCore::BACKUP_REGISTRY_KEY = "SOFTWARE\\UtilityApp\\Backup";
+
+// Export constants
+const char* EXPORT_HEADER = "[UtilityApp Settings Export]\n";
+
+// Validation constants
+const int MIN_HOTKEY_VK = 0x08;
+const int MAX_HOTKEY_VK = 0xFF;
+const int MIN_TIMER_DURATION = 1;
+const int MAX_TIMER_DURATION = 3600;
+const int MAX_STRING_LENGTH = 100;
+
+// Helper function for safe string to int conversion
+int SafeStringToInt(const std::string& str, int defaultValue = 0) {
+    try {
+        return std::stoi(str);
+    } catch (const std::invalid_argument&) {
+        return defaultValue;
+    } catch (const std::out_of_range&) {
+        return defaultValue;
+    }
+}
 
 SettingsCore::SettingsCore() {
     // Initialize default settings
@@ -30,14 +51,15 @@ SettingsCore::~SettingsCore() {
 bool SettingsCore::LoadSettings(AppSettings& settings) {
     HKEY hKey;
     if (RegOpenKeyExA(HKEY_CURRENT_USER, REGISTRY_KEY, 0, KEY_READ, &hKey) != ERROR_SUCCESS) {
-        // No saved settings, use defaults
+        // No saved settings, use centralized defaults
         settings = defaultSettings;
         return false;
     }
 
     DWORD value;
+    std::string strValue;
     
-    // Load all settings values
+    // Load all DWORD settings values - override defaults where they exist
     if (ReadRegistryValue(hKey, "KeyboardLockEnabled", value)) {
         settings.keyboardLockEnabled = (value != 0);
     }
@@ -110,6 +132,23 @@ bool SettingsCore::LoadSettings(AppSettings& settings) {
     if (ReadRegistryValue(hKey, "BossKeyEnabled", value)) {
         settings.bossKeyEnabled = (value != 0);
     }
+    
+    // Load string values
+    if (ReadRegistryString(hKey, "LockHotkey", strValue)) {
+        settings.lockHotkey = strValue;
+    }
+    
+    if (ReadRegistryString(hKey, "UnlockPassword", strValue)) {
+        settings.unlockPassword = strValue;
+    }
+    
+    if (ReadRegistryString(hKey, "WhitelistedKeys", strValue)) {
+        settings.whitelistedKeys = strValue;
+    }
+    
+    if (ReadRegistryString(hKey, "BossKeyHotkey", strValue)) {
+        settings.bossKeyHotkey = strValue;
+    }
 
     RegCloseKey(hKey);
     
@@ -155,6 +194,12 @@ bool SettingsCore::SaveSettings(const AppSettings& settings) {
     success &= WriteRegistryValue(hKey, "QuickLaunchEnabled", settings.quickLaunchEnabled ? 1 : 0);
     success &= WriteRegistryValue(hKey, "WorkBreakTimerEnabled", settings.workBreakTimerEnabled ? 1 : 0);
     success &= WriteRegistryValue(hKey, "BossKeyEnabled", settings.bossKeyEnabled ? 1 : 0);
+    
+    // Save string values
+    success &= WriteRegistryString(hKey, "LockHotkey", settings.lockHotkey);
+    success &= WriteRegistryString(hKey, "UnlockPassword", settings.unlockPassword);
+    success &= WriteRegistryString(hKey, "WhitelistedKeys", settings.whitelistedKeys);
+    success &= WriteRegistryString(hKey, "BossKeyHotkey", settings.bossKeyHotkey);
 
     RegCloseKey(hKey);
     
@@ -254,7 +299,7 @@ bool SettingsCore::ValidateSettings(const AppSettings& settings) {
     }
     
     // Validate virtual key - must be a valid Windows virtual key code
-    if (settings.hotkeyVirtualKey < 0x08 || settings.hotkeyVirtualKey > 0xFF) {
+    if (settings.hotkeyVirtualKey < MIN_HOTKEY_VK || settings.hotkeyVirtualKey > MAX_HOTKEY_VK) {
         return false;
     }
     
@@ -325,15 +370,46 @@ bool SettingsCore::ExportToFile(const AppSettings& settings, const std::string& 
         return false;
     }
     
-    file << "[UtilityApp Settings Export]\n";
+    file << EXPORT_HEADER;
+    // Lock & Input settings
+    file << "KeyboardLockEnabled=" << (settings.keyboardLockEnabled ? 1 : 0) << "\n";
+    file << "MouseLockEnabled=" << (settings.mouseLockEnabled ? 1 : 0) << "\n";
     file << "UnlockMethod=" << settings.unlockMethod << "\n";
     file << "EnableFailsafe=" << (settings.enableFailsafe ? 1 : 0) << "\n";
+    file << "LockHotkey=" << settings.lockHotkey << "\n";
+    
+    // Hotkey settings
     file << "HotkeyModifiers=" << settings.hotkeyModifiers << "\n";
     file << "HotkeyVirtualKey=" << settings.hotkeyVirtualKey << "\n";
+    
+    // Password settings
+    file << "UnlockPassword=" << settings.unlockPassword << "\n";
+    file << "PasswordEnabled=" << (settings.passwordEnabled ? 1 : 0) << "\n";
+    
+    // Timer settings
+    file << "TimerDuration=" << settings.timerDuration << "\n";
+    file << "TimerEnabled=" << (settings.timerEnabled ? 1 : 0) << "\n";
+    
+    // Whitelist settings
+    file << "WhitelistedKeys=" << settings.whitelistedKeys << "\n";
+    file << "WhitelistEnabled=" << (settings.whitelistEnabled ? 1 : 0) << "\n";
+    
+    // Overlay settings
     file << "OverlayStyle=" << settings.overlayStyle << "\n";
+    
+    // Notification settings
     file << "NotificationStyle=" << settings.notificationStyle << "\n";
+    
+    // Privacy settings
     file << "HideFromTaskbar=" << (settings.hideFromTaskbar ? 1 : 0) << "\n";
     file << "StartWithWindows=" << (settings.startWithWindows ? 1 : 0) << "\n";
+    
+    // Productivity settings
+    file << "USBAlertEnabled=" << (settings.usbAlertEnabled ? 1 : 0) << "\n";
+    file << "QuickLaunchEnabled=" << (settings.quickLaunchEnabled ? 1 : 0) << "\n";
+    file << "WorkBreakTimerEnabled=" << (settings.workBreakTimerEnabled ? 1 : 0) << "\n";
+    file << "BossKeyEnabled=" << (settings.bossKeyEnabled ? 1 : 0) << "\n";
+    file << "BossKeyHotkey=" << settings.bossKeyHotkey << "\n";
     
     file.close();
     return true;
@@ -357,21 +433,36 @@ bool SettingsCore::ImportFromFile(AppSettings& settings, const std::string& file
         std::string key = line.substr(0, pos);
         std::string value = line.substr(pos + 1);
         
-        int intValue = std::stoi(value);
-        
-        if (key == "UnlockMethod") newSettings.unlockMethod = intValue;
-        else if (key == "EnableFailsafe") newSettings.enableFailsafe = (intValue != 0);
-        else if (key == "HotkeyModifiers") newSettings.hotkeyModifiers = intValue;
-        else if (key == "HotkeyVirtualKey") newSettings.hotkeyVirtualKey = intValue;
-        else if (key == "OverlayStyle") newSettings.overlayStyle = intValue;
-        else if (key == "NotificationStyle") newSettings.notificationStyle = intValue;
-        else if (key == "HideFromTaskbar") newSettings.hideFromTaskbar = (intValue != 0);
-        else if (key == "StartWithWindows") newSettings.startWithWindows = (intValue != 0);
+        // Handle integer values with safe conversion
+        if (key == "KeyboardLockEnabled") newSettings.keyboardLockEnabled = (SafeStringToInt(value) != 0);
+        else if (key == "MouseLockEnabled") newSettings.mouseLockEnabled = (SafeStringToInt(value) != 0);
+        else if (key == "UnlockMethod") newSettings.unlockMethod = SafeStringToInt(value);
+        else if (key == "EnableFailsafe") newSettings.enableFailsafe = (SafeStringToInt(value) != 0);
+        else if (key == "HotkeyModifiers") newSettings.hotkeyModifiers = SafeStringToInt(value);
+        else if (key == "HotkeyVirtualKey") newSettings.hotkeyVirtualKey = SafeStringToInt(value);
+        else if (key == "PasswordEnabled") newSettings.passwordEnabled = (SafeStringToInt(value) != 0);
+        else if (key == "TimerDuration") newSettings.timerDuration = SafeStringToInt(value);
+        else if (key == "TimerEnabled") newSettings.timerEnabled = (SafeStringToInt(value) != 0);
+        else if (key == "WhitelistEnabled") newSettings.whitelistEnabled = (SafeStringToInt(value) != 0);
+        else if (key == "OverlayStyle") newSettings.overlayStyle = SafeStringToInt(value);
+        else if (key == "NotificationStyle") newSettings.notificationStyle = SafeStringToInt(value);
+        else if (key == "HideFromTaskbar") newSettings.hideFromTaskbar = (SafeStringToInt(value) != 0);
+        else if (key == "StartWithWindows") newSettings.startWithWindows = (SafeStringToInt(value) != 0);
+        else if (key == "USBAlertEnabled") newSettings.usbAlertEnabled = (SafeStringToInt(value) != 0);
+        else if (key == "QuickLaunchEnabled") newSettings.quickLaunchEnabled = (SafeStringToInt(value) != 0);
+        else if (key == "WorkBreakTimerEnabled") newSettings.workBreakTimerEnabled = (SafeStringToInt(value) != 0);
+        else if (key == "BossKeyEnabled") newSettings.bossKeyEnabled = (SafeStringToInt(value) != 0);
+        // Handle string values
+        else if (key == "LockHotkey") newSettings.lockHotkey = value;
+        else if (key == "UnlockPassword") newSettings.unlockPassword = value;
+        else if (key == "WhitelistedKeys") newSettings.whitelistedKeys = value;
+        else if (key == "BossKeyHotkey") newSettings.bossKeyHotkey = value;
     }
     
     file.close();
     
-    if (ValidateSettings(newSettings)) {
+    // Use comprehensive validation for imported data
+    if (ValidateImportedSettings(newSettings)) {
         settings = newSettings;
         return true;
     }
@@ -382,17 +473,23 @@ bool SettingsCore::ImportFromFile(AppSettings& settings, const std::string& file
 bool SettingsCore::CreateBackup(const AppSettings& settings) {
     // Create backup in registry under different key
     HKEY hKey;
-    const char* backupKey = "SOFTWARE\\UtilityApp\\Backup";
     
-    if (RegCreateKeyExA(HKEY_CURRENT_USER, backupKey, 0, NULL, 0, KEY_WRITE, NULL, &hKey, NULL) != ERROR_SUCCESS) {
+    if (RegCreateKeyExA(HKEY_CURRENT_USER, BACKUP_REGISTRY_KEY, 0, NULL, 0, KEY_WRITE, NULL, &hKey, NULL) != ERROR_SUCCESS) {
         return false;
     }
 
     bool success = true;
+    // Save all settings values (same as main SaveSettings)
+    success &= WriteRegistryValue(hKey, "KeyboardLockEnabled", settings.keyboardLockEnabled ? 1 : 0);
+    success &= WriteRegistryValue(hKey, "MouseLockEnabled", settings.mouseLockEnabled ? 1 : 0);
     success &= WriteRegistryValue(hKey, "UnlockMethod", settings.unlockMethod);
     success &= WriteRegistryValue(hKey, "EnableFailsafe", settings.enableFailsafe ? 1 : 0);
     success &= WriteRegistryValue(hKey, "HotkeyModifiers", settings.hotkeyModifiers);
     success &= WriteRegistryValue(hKey, "HotkeyVirtualKey", settings.hotkeyVirtualKey);
+    success &= WriteRegistryValue(hKey, "PasswordEnabled", settings.passwordEnabled ? 1 : 0);
+    success &= WriteRegistryValue(hKey, "TimerDuration", settings.timerDuration);
+    success &= WriteRegistryValue(hKey, "TimerEnabled", settings.timerEnabled ? 1 : 0);
+    success &= WriteRegistryValue(hKey, "WhitelistEnabled", settings.whitelistEnabled ? 1 : 0);
     success &= WriteRegistryValue(hKey, "OverlayStyle", settings.overlayStyle);
     success &= WriteRegistryValue(hKey, "NotificationStyle", settings.notificationStyle);
     success &= WriteRegistryValue(hKey, "HideFromTaskbar", settings.hideFromTaskbar ? 1 : 0);
@@ -403,6 +500,12 @@ bool SettingsCore::CreateBackup(const AppSettings& settings) {
     success &= WriteRegistryValue(hKey, "QuickLaunchEnabled", settings.quickLaunchEnabled ? 1 : 0);
     success &= WriteRegistryValue(hKey, "WorkBreakTimerEnabled", settings.workBreakTimerEnabled ? 1 : 0);
     success &= WriteRegistryValue(hKey, "BossKeyEnabled", settings.bossKeyEnabled ? 1 : 0);
+    
+    // Save string values
+    success &= WriteRegistryString(hKey, "LockHotkey", settings.lockHotkey);
+    success &= WriteRegistryString(hKey, "UnlockPassword", settings.unlockPassword);
+    success &= WriteRegistryString(hKey, "WhitelistedKeys", settings.whitelistedKeys);
+    success &= WriteRegistryString(hKey, "BossKeyHotkey", settings.bossKeyHotkey);
 
     RegCloseKey(hKey);
     return success;
@@ -410,23 +513,42 @@ bool SettingsCore::CreateBackup(const AppSettings& settings) {
 
 bool SettingsCore::RestoreFromBackup(AppSettings& settings) {
     HKEY hKey;
-    const char* backupKey = "SOFTWARE\\UtilityApp\\Backup";
     
-    if (RegOpenKeyExA(HKEY_CURRENT_USER, backupKey, 0, KEY_READ, &hKey) != ERROR_SUCCESS) {
+    if (RegOpenKeyExA(HKEY_CURRENT_USER, BACKUP_REGISTRY_KEY, 0, KEY_READ, &hKey) != ERROR_SUCCESS) {
         return false;
     }
 
     AppSettings backupSettings = defaultSettings;
     DWORD value;
+    std::string strValue;
     
+    // Read all settings values (same as main LoadSettings)
+    if (ReadRegistryValue(hKey, "KeyboardLockEnabled", value)) backupSettings.keyboardLockEnabled = (value != 0);
+    if (ReadRegistryValue(hKey, "MouseLockEnabled", value)) backupSettings.mouseLockEnabled = (value != 0);
     if (ReadRegistryValue(hKey, "UnlockMethod", value)) backupSettings.unlockMethod = value;
     if (ReadRegistryValue(hKey, "EnableFailsafe", value)) backupSettings.enableFailsafe = (value != 0);
     if (ReadRegistryValue(hKey, "HotkeyModifiers", value)) backupSettings.hotkeyModifiers = value;
     if (ReadRegistryValue(hKey, "HotkeyVirtualKey", value)) backupSettings.hotkeyVirtualKey = value;
+    if (ReadRegistryValue(hKey, "PasswordEnabled", value)) backupSettings.passwordEnabled = (value != 0);
+    if (ReadRegistryValue(hKey, "TimerDuration", value)) backupSettings.timerDuration = value;
+    if (ReadRegistryValue(hKey, "TimerEnabled", value)) backupSettings.timerEnabled = (value != 0);
+    if (ReadRegistryValue(hKey, "WhitelistEnabled", value)) backupSettings.whitelistEnabled = (value != 0);
     if (ReadRegistryValue(hKey, "OverlayStyle", value)) backupSettings.overlayStyle = value;
     if (ReadRegistryValue(hKey, "NotificationStyle", value)) backupSettings.notificationStyle = value;
     if (ReadRegistryValue(hKey, "HideFromTaskbar", value)) backupSettings.hideFromTaskbar = (value != 0);
     if (ReadRegistryValue(hKey, "StartWithWindows", value)) backupSettings.startWithWindows = (value != 0);
+    
+    // Productivity settings
+    if (ReadRegistryValue(hKey, "USBAlertEnabled", value)) backupSettings.usbAlertEnabled = (value != 0);
+    if (ReadRegistryValue(hKey, "QuickLaunchEnabled", value)) backupSettings.quickLaunchEnabled = (value != 0);
+    if (ReadRegistryValue(hKey, "WorkBreakTimerEnabled", value)) backupSettings.workBreakTimerEnabled = (value != 0);
+    if (ReadRegistryValue(hKey, "BossKeyEnabled", value)) backupSettings.bossKeyEnabled = (value != 0);
+    
+    // Read string values
+    if (ReadRegistryString(hKey, "LockHotkey", strValue)) backupSettings.lockHotkey = strValue;
+    if (ReadRegistryString(hKey, "UnlockPassword", strValue)) backupSettings.unlockPassword = strValue;
+    if (ReadRegistryString(hKey, "WhitelistedKeys", strValue)) backupSettings.whitelistedKeys = strValue;
+    if (ReadRegistryString(hKey, "BossKeyHotkey", strValue)) backupSettings.bossKeyHotkey = strValue;
 
     RegCloseKey(hKey);
     
@@ -445,6 +567,25 @@ bool SettingsCore::WriteRegistryValue(HKEY hKey, const char* valueName, DWORD va
 bool SettingsCore::ReadRegistryValue(HKEY hKey, const char* valueName, DWORD& value) {
     DWORD size = sizeof(DWORD), type;
     return RegQueryValueExA(hKey, valueName, NULL, &type, (BYTE*)&value, &size) == ERROR_SUCCESS && type == REG_DWORD;
+}
+
+bool SettingsCore::WriteRegistryString(HKEY hKey, const char* valueName, const std::string& value) {
+    return RegSetValueExA(hKey, valueName, 0, REG_SZ, (const BYTE*)value.c_str(), (DWORD)(value.length() + 1)) == ERROR_SUCCESS;
+}
+
+bool SettingsCore::ReadRegistryString(HKEY hKey, const char* valueName, std::string& value) {
+    DWORD size = 0, type;
+    if (RegQueryValueExA(hKey, valueName, NULL, &type, NULL, &size) != ERROR_SUCCESS || type != REG_SZ) {
+        return false;
+    }
+    
+    char* buffer = new char[size];
+    bool success = RegQueryValueExA(hKey, valueName, NULL, &type, (BYTE*)buffer, &size) == ERROR_SUCCESS;
+    if (success) {
+        value = buffer;
+    }
+    delete[] buffer;
+    return success;
 }
 
 bool SettingsCore::ApplyHotkeySettings(const AppSettings& settings) {
@@ -573,3 +714,73 @@ bool SettingsCore::ApplyNotificationSettings(const AppSettings& settings) {
     return true;
 }
 
+// Systematic layer management functions
+void SettingsCore::UpdateAllLayers(const AppSettings& settings) {
+    extern AppSettings g_appSettings;
+    extern AppSettings g_persistentSettings;
+    
+    g_appSettings = settings;
+    g_persistentSettings = settings;
+}
+
+bool SettingsCore::IsPersistentDataComplete() {
+    HKEY hKey;
+    if (RegOpenKeyExA(HKEY_CURRENT_USER, REGISTRY_KEY, 0, KEY_READ, &hKey) != ERROR_SUCCESS) {
+        return false; // No registry data at all
+    }
+    
+    // Check if all critical settings exist
+    DWORD value;
+    std::string strValue;
+    
+    // Check critical DWORD values
+    bool hasCriticalValues = 
+        ReadRegistryValue(hKey, "KeyboardLockEnabled", value) &&
+        ReadRegistryValue(hKey, "MouseLockEnabled", value) &&
+        ReadRegistryValue(hKey, "UnlockMethod", value) &&
+        ReadRegistryValue(hKey, "HotkeyModifiers", value) &&
+        ReadRegistryValue(hKey, "HotkeyVirtualKey", value);
+    
+    // Check critical string values
+    bool hasCriticalStrings =
+        ReadRegistryString(hKey, "LockHotkey", strValue) &&
+        ReadRegistryString(hKey, "UnlockPassword", strValue);
+    
+    RegCloseKey(hKey);
+    
+    return hasCriticalValues && hasCriticalStrings;
+}
+
+bool SettingsCore::ValidateImportedSettings(const AppSettings& settings) {
+    // For imported data, we need to validate ranges and values
+    if (settings.unlockMethod < 0 || settings.unlockMethod > 2) {
+        return false;
+    }
+    
+    if (settings.hotkeyModifiers == 0) {
+        return false; // Must have at least one modifier
+    }
+    
+    if (settings.hotkeyVirtualKey < MIN_HOTKEY_VK || settings.hotkeyVirtualKey > MAX_HOTKEY_VK) {
+        return false;
+    }
+    
+    if (settings.overlayStyle < 0 || settings.overlayStyle > 3) {
+        return false;
+    }
+    
+    if (settings.notificationStyle < 0 || settings.notificationStyle > 3) {
+        return false;
+    }
+    
+    if (settings.timerDuration < MIN_TIMER_DURATION || settings.timerDuration > MAX_TIMER_DURATION) {
+        return false; // Reasonable timer range
+    }
+    
+    // Validate string lengths
+    if (settings.lockHotkey.length() > MAX_STRING_LENGTH || settings.unlockPassword.length() > MAX_STRING_LENGTH) {
+        return false;
+    }
+    
+    return true;
+}

@@ -14,9 +14,6 @@
 #include "custom_notifications.h"
 #include "notifications.h"
 #include <commctrl.h>
-#include <fstream>
-#include <sstream>
-#include <map>
 
 // Global settings instances
 AppSettings g_appSettings;        // Current runtime settings (what the app is using)
@@ -33,13 +30,12 @@ static SettingsDialog* g_currentDialog = nullptr;
 SettingsDialog::SettingsDialog(AppSettings* appSettings) 
     : hMainDialog(nullptr), hTabControl(nullptr), hCurrentTab(nullptr),
       currentTabIndex(0), settings(appSettings), hasUnsavedChanges(false),
-      isEditingHotkey(false), hTabLockInput(nullptr), hTabProductivity(nullptr),
-      hTabPrivacy(nullptr), hTabAppearance(nullptr), hTabData(nullptr), isCapturingHotkey(false),
-      ctrlPressed(false), shiftPressed(false), altPressed(false), winPressed(false),
-      hKeyboardHook(nullptr), lockInputTab(nullptr), productivityTab(nullptr), privacyTab(nullptr), appearanceTab(nullptr), dataTab(nullptr) {
+      hTabLockInput(nullptr), hTabProductivity(nullptr),
+      hTabPrivacy(nullptr), hTabAppearance(nullptr), hTabData(nullptr),
+      lockInputTab(nullptr), productivityTab(nullptr), privacyTab(nullptr), 
+      appearanceTab(nullptr), dataTab(nullptr) {
     
     // Initialize with current runtime settings
-    // tempSettings represents the UI state (current session changes)
     tempSettings = g_appSettings;
     
     // Update the passed pointer to current runtime settings
@@ -56,44 +52,19 @@ SettingsDialog::SettingsDialog(AppSettings* appSettings)
 }
 
 SettingsDialog::~SettingsDialog() {
-    if (hKeyboardHook) {
-        UnhookWindowsHookEx(hKeyboardHook);
-    }
+    // Clean up tab windows
     if (hTabLockInput) DestroyWindow(hTabLockInput);
     if (hTabProductivity) DestroyWindow(hTabProductivity);
     if (hTabPrivacy) DestroyWindow(hTabPrivacy);
     if (hTabAppearance) DestroyWindow(hTabAppearance);
     if (hTabData) DestroyWindow(hTabData);
 
-    // Clean up the lock input tab object
-    if (lockInputTab) {
-        delete lockInputTab;
-        lockInputTab = nullptr;
-    }
-
-    // Clean up the productivity tab object
-    if (productivityTab) {
-        delete productivityTab;
-        productivityTab = nullptr;
-    }
-
-    // Clean up the privacy tab object
-    if (privacyTab) {
-        delete privacyTab;
-        privacyTab = nullptr;
-    }
-
-    // Clean up the appearance tab object
-    if (appearanceTab) {
-        delete appearanceTab;
-        appearanceTab = nullptr;
-    }
-
-    // Clean up the data tab object
-    if (dataTab) {
-        delete dataTab;
-        dataTab = nullptr;
-    }
+    // Clean up tab objects
+    if (lockInputTab) delete lockInputTab;
+    if (productivityTab) delete productivityTab;
+    if (privacyTab) delete privacyTab;
+    if (appearanceTab) delete appearanceTab;
+    if (dataTab) delete dataTab;
 }
 
 bool SettingsDialog::ShowDialog(HWND parent) {
@@ -408,18 +379,16 @@ void SettingsDialog::RefreshCurrentTabControls() {
 void SettingsDialog::LoadSettings() {
     // Load settings from persistent storage first
     if (g_settingsCore.LoadSettings(tempSettings)) {
-        // Successfully loaded saved settings - use them
-        g_persistentSettings = tempSettings;
-        g_appSettings = tempSettings;
+        // Successfully loaded saved settings - sync all layers
+        g_settingsCore.UpdateAllLayers(tempSettings);
     } else {
-        // No saved settings found - use defaults
-        tempSettings = AppSettings(); // Constructor provides defaults
-        g_persistentSettings = tempSettings;
-        g_appSettings = tempSettings;
+        // No saved settings found - use defaults for all layers
+        g_settingsCore.ResetToDefaults(tempSettings);
+        g_settingsCore.UpdateAllLayers(tempSettings);
     }
     
     hasUnsavedChanges = false;
-    UpdateButtonStates();
+    RefreshUI(); // Centralized UI refresh
 }
 
 void SettingsDialog::RefreshAllTabs() {
@@ -441,12 +410,19 @@ void SettingsDialog::RefreshAllTabs() {
     }
 }
 
+void SettingsDialog::RefreshUI() {
+    // Centralized UI refresh - combines both operations for efficiency
+    RefreshAllTabs();
+    UpdateButtonStates();
+}
+
 void SettingsDialog::UpdateButtonStates() {
     // Update the state of OK/Apply buttons based on whether there are changes
     if (hMainDialog) {
         // Apply button: enabled when UI differs from current runtime settings
         // Note: Don't call ReadUIValues() here as tab classes maintain tempSettings directly
         bool hasRuntimeChanges = g_settingsCore.HasChanges(tempSettings, g_appSettings);
+        
         EnableWindow(GetDlgItem(hMainDialog, IDC_BTN_APPLY), hasRuntimeChanges);
         
         // OK button should always be enabled
@@ -461,8 +437,7 @@ void SettingsDialog::SaveSettings() {
     // tempSettings is maintained by tab classes - no need to read UI values
     
     // Check if current settings are default settings
-    AppSettings defaults;
-    bool isDefaultSettings = (tempSettings == defaults);
+    bool isDefaultSettings = (tempSettings == g_settingsCore.GetDefaultSettings());
     
     bool success = false;
     if (isDefaultSettings) {
@@ -471,21 +446,19 @@ void SettingsDialog::SaveSettings() {
         success = g_settingsCore.ClearPersistentStorage();
         if (success) {
             // Update persistent settings to reflect that storage is cleared
-            g_persistentSettings = defaults;
+            g_settingsCore.ResetToDefaults(g_persistentSettings);
+            g_settingsCore.UpdateAllLayers(g_persistentSettings);
         }
     } else {
         // Save current temp settings normally
         success = g_settingsCore.SaveSettings(tempSettings);
         if (success) {
-            // Update persistent settings baseline
-            g_persistentSettings = tempSettings;
+            // Update all layers with the saved settings
+            g_settingsCore.UpdateAllLayers(tempSettings);
         }
     }
     
     if (success) {
-        // Update runtime settings in both cases
-        g_appSettings = tempSettings;
-        
         // Update the original settings pointer if provided
         if (settings) {
             *settings = tempSettings;
@@ -553,25 +526,22 @@ bool SettingsDialog::HasPendingChanges() {
 }
 
 void SettingsDialog::ResetToDefaults() {
-    // Create default settings
-    AppSettings defaults; // Uses constructor defaults
-    
-    // Apply defaults to current session (but don't save to registry yet)
-    g_appSettings = defaults;
-    tempSettings = defaults;
+    // Use centralized default settings for all layers
+    g_settingsCore.ResetToDefaults(tempSettings);
+    g_settingsCore.UpdateAllLayers(tempSettings);
     
     // Refresh UI to show default values
     RefreshAllTabs();
     
     // Refresh runtime system with defaults
     RefreshHooks();
+    
     if (g_mainWindow) {
         RegisterHotkeyFromSettings(g_mainWindow);
     }
     
-    // Check if user has unsaved changes (defaults vs persistent settings)
-    hasUnsavedChanges = g_settingsCore.HasChanges(defaults, g_persistentSettings);
-    UpdateButtonStates();
+    hasUnsavedChanges = false;
+    RefreshUI(); // Centralized UI refresh
 }
 
 void SettingsDialog::ShowPasswordConfig() {
@@ -668,16 +638,20 @@ void InitializeSettings() {
 }
 
 void LoadSettingsFromFile() {
-    // Load persistent settings from registry
-    if (g_settingsCore.LoadSettings(g_persistentSettings)) {
-        // Successfully loaded saved settings from registry
-        g_appSettings = g_persistentSettings;  // Apply to runtime
+    // Check if persistent data exists and is complete
+    if (g_settingsCore.IsPersistentDataComplete()) {
+        // Load complete persistent data and use it for runtime
+        if (g_settingsCore.LoadSettings(g_persistentSettings)) {
+            g_settingsCore.UpdateAllLayers(g_persistentSettings);  // runtime = persistent
+        } else {
+            // Fallback to defaults if loading fails
+            g_settingsCore.ResetToDefaults(g_appSettings);
+            g_settingsCore.UpdateAllLayers(g_appSettings);
+        }
     } else {
-        // No saved settings found (first time user or registry missing)
-        // Use defaults for all three layers
-        AppSettings defaults; // Uses constructor defaults
-        g_persistentSettings = defaults;
-        g_appSettings = defaults;
+        // No complete persistent data - use defaults for both layers
+        g_settingsCore.ResetToDefaults(g_appSettings);
+        g_settingsCore.UpdateAllLayers(g_appSettings);
     }
     
     g_settingsLoaded = true;

@@ -61,10 +61,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
             // Initialize privacy manager with main window
             g_privacyManager.SetMainWindow(hwnd);
             
-            // Enable privacy features based on settings
-            if (g_appSettings.bossKeyEnabled) {
-                g_privacyManager.EnableBossKey(g_privacyManager.GetBossKeyModifiers(), g_privacyManager.GetBossKeyVirtualKey());
-            }
+            // Apply all loaded settings to the feature managers
+            g_settingsCore.ApplySettings(g_appSettings, hwnd);
             
             // Add the icon to the system tray on window creation
             AddTrayIcon(hwnd);

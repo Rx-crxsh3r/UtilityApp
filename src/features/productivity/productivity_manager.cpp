@@ -12,7 +12,6 @@
 #include <shellapi.h>
 #include <tlhelp32.h>
 #include <algorithm>
-#include <cstring>
 
 // Registry constants
 const char* ProductivityManager::REGISTRY_KEY = "SOFTWARE\\UtilityApp\\Productivity";

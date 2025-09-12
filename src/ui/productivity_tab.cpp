@@ -2,10 +2,10 @@
 // Productivity Tab - OOP implementation
 
 #include "productivity_tab.h"
-#include "../settings.h"  // For SettingsDialog access
+#include "../settings.h"
 #include "../settings/settings_core.h"
 #include "../features/productivity/productivity_manager.h"
-#include "../resource.h"  // For control IDs
+#include "../resource.h"
 #include <commctrl.h>
 
 // External references

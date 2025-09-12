@@ -65,11 +65,11 @@ struct AppSettings {
         overlayStyle = 1; // Default to dim overlay
         notificationStyle = 0; // Default to custom notifications
         hideFromTaskbar = true;
-        startWithWindows = true;
+        startWithWindows = false;
         usbAlertEnabled = false; // Off by default
         quickLaunchEnabled = false; // Off by default (optimized)
         workBreakTimerEnabled = false; // Off by default
-        bossKeyEnabled = true; // Enable by default for better user experience
+        bossKeyEnabled = false; // Enable by default for better user experience
         bossKeyHotkey = "Ctrl+Alt+F12";
     }
     
@@ -107,6 +107,7 @@ struct AppSettings {
 class SettingsCore {
 private:
     static const char* REGISTRY_KEY;
+    static const char* BACKUP_REGISTRY_KEY;
     AppSettings defaultSettings;
     
 public:
@@ -123,6 +124,7 @@ public:
     // Validation
     bool ValidateSettings(const AppSettings& settings);
     void ResetToDefaults(AppSettings& settings);
+    const AppSettings& GetDefaultSettings() const { return defaultSettings; }
     
     // Change detection
     bool HasChanges(const AppSettings& current, const AppSettings& original);
@@ -141,9 +143,16 @@ public:
     bool CreateBackup(const AppSettings& settings);
     bool RestoreFromBackup(AppSettings& settings);
     
+    // Systematic layer management
+    void UpdateAllLayers(const AppSettings& settings);
+    bool IsPersistentDataComplete();
+    bool ValidateImportedSettings(const AppSettings& settings);
+    
 private:
     bool WriteRegistryValue(HKEY hKey, const char* valueName, DWORD value);
     bool ReadRegistryValue(HKEY hKey, const char* valueName, DWORD& value);
+    bool WriteRegistryString(HKEY hKey, const char* valueName, const std::string& value);
+    bool ReadRegistryString(HKEY hKey, const char* valueName, std::string& value);
     
     // Apply specific setting categories
     bool ApplyHotkeySettings(const AppSettings& settings);

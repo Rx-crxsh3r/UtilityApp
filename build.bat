@@ -96,18 +96,8 @@ echo ========================================
 echo BUILD SUCCESSFUL!
 echo ========================================
 echo.
-echo Modular UtilityApp has been built successfully!
+echo UtilityApp has been built successfully!
 echo.
-echo Features compiled:
-echo  ✓ Core input blocking system
-echo  ✓ Privacy management features  
-echo  ✓ Productivity enhancement tools
-echo  ✓ Advanced settings system
-echo  ✓ Custom notifications
-echo  ✓ Audio feedback system
-echo  ✓ Overlay management
-echo  ✓ Tray icon integration
-echo  ✓ Failsafe mechanisms
 echo.
 echo Created: UtilityApp.exe
 echo Build completed at: %date% %time%

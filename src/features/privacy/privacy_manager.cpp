@@ -4,7 +4,6 @@
 #include "privacy_manager.h"
 #include "../../notifications.h"
 #include <shlobj.h>
-#include <iostream>
 
 // Registry constants
 const char* PrivacyManager::REGISTRY_KEY = "SOFTWARE\\UtilityApp\\Privacy";
