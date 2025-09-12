@@ -5,6 +5,10 @@
 #include "settings.h"
 #include <dwmapi.h>
 
+// Overlay constants
+#define SEMI_TRANSPARENT 128  // 50% transparency
+#define COLOR_GRAY RGB(192, 192, 192)  // Light gray color
+
 // Global overlay instance
 ScreenOverlay g_screenOverlay;
 
@@ -120,11 +124,11 @@ void ScreenOverlay::UpdateOverlayStyle() {
 
 void ScreenOverlay::SetupBlurEffect() {
     // Set semi-transparent background with blur hint
-    SetLayeredWindowAttributes(hOverlayWindow, 0, 180, LWA_ALPHA);
+    SetLayeredWindowAttributes(hOverlayWindow, 0, SEMI_TRANSPARENT, LWA_ALPHA);
     
     // Create a light gray brush for blur effect simulation
     if (hBackgroundBrush) DeleteObject(hBackgroundBrush);
-    hBackgroundBrush = CreateSolidBrush(RGB(128, 128, 128));
+    hBackgroundBrush = CreateSolidBrush(COLOR_GRAY);
     
     // Enable blur behind (Windows Aero effect)
     DWM_BLURBEHIND bb = {};

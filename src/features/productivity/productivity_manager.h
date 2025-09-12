@@ -37,7 +37,13 @@ enum TimerMode {
 
 class ProductivityManager {
 private:
+    static ProductivityManager* instance;
     static const char* REGISTRY_KEY;
+    
+public:
+    // Public constructor for global instance
+    ProductivityManager();
+    ~ProductivityManager();
     
     // USB Alert system
     bool usbAlertEnabled;
@@ -68,12 +74,6 @@ private:
     // Main window handle for hotkeys and notifications
     HWND mainWindow;
     
-    // Registry operations
-    bool WriteRegistryValue(HKEY hKey, const char* valueName, DWORD value);
-    bool ReadRegistryValue(HKEY hKey, const char* valueName, DWORD& value);
-    bool WriteStringValue(HKEY hKey, const char* valueName, const std::string& value);
-    bool ReadStringValue(HKEY hKey, const char* valueName, std::string& value);
-    
     // USB notification handling
     bool RegisterForUSBNotifications(HWND hwnd);
     void UnregisterUSBNotifications();
@@ -89,10 +89,15 @@ private:
     void CheckAndShowFiveMinuteWarning(); // Check for 5-minute warning
     
 public:
-    ProductivityManager();
-    ~ProductivityManager();
+    // Singleton access
+    static ProductivityManager& GetInstance();
+    
+    // Delete copy constructor and assignment operator
+    ProductivityManager(const ProductivityManager&) = delete;
+    ProductivityManager& operator=(const ProductivityManager&) = delete;
     
     // Initialization
+    void Initialize();
     void SetMainWindow(HWND window) { mainWindow = window; }
     
     // USB Alert functionality
@@ -136,6 +141,13 @@ public:
     DWORD GetWorkDuration() const { return workDuration; }
     DWORD GetShortBreakDuration() const { return shortBreakDuration; }
     DWORD GetLongBreakDuration() const { return longBreakDuration; }
+    
+private:
+    // Registry helper functions
+    bool WriteRegistryValue(HKEY hKey, const char* valueName, DWORD value);
+    bool ReadRegistryValue(HKEY hKey, const char* valueName, DWORD& value);
+    bool WriteStringValue(HKEY hKey, const char* valueName, const std::string& value);
+    bool ReadStringValue(HKEY hKey, const char* valueName, std::string& value);
 };
 
 // Global instance

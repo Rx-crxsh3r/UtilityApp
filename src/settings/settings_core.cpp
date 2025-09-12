@@ -16,7 +16,10 @@ SettingsCore g_settingsCore;
 
 // Registry constants
 const char* SettingsCore::REGISTRY_KEY = "SOFTWARE\\UtilityApp\\Core";
-const char* SettingsCore::BACKUP_REGISTRY_KEY = "SOFTWARE\\UtilityApp\\Backup";
+
+// Data integrity marker
+const char* DATA_INTEGRITY_MARKER = "UtilityApp_Settings_v1.0";
+const DWORD EXPECTED_SETTINGS_COUNT = 20; // Number of expected settings
 
 // Export constants
 const char* EXPORT_HEADER = "[UtilityApp Settings Export]\n";
@@ -51,113 +54,135 @@ SettingsCore::~SettingsCore() {
 bool SettingsCore::LoadSettings(AppSettings& settings) {
     HKEY hKey;
     if (RegOpenKeyExA(HKEY_CURRENT_USER, REGISTRY_KEY, 0, KEY_READ, &hKey) != ERROR_SUCCESS) {
-        // No saved settings, use centralized defaults
+        // No saved settings, use defaults
         settings = defaultSettings;
         return false;
     }
 
+    // First, validate data integrity
+    std::string integrityMarker;
+    DWORD settingsCount = 0;
+
+    bool hasIntegrity = ReadRegistryString(hKey, "DataIntegrity", integrityMarker);
+    ReadRegistryValue(hKey, "SettingsCount", settingsCount);
+
+    if (!hasIntegrity || integrityMarker != DATA_INTEGRITY_MARKER || settingsCount != EXPECTED_SETTINGS_COUNT) {
+        // Data is corrupted or from old version, use defaults
+        RegCloseKey(hKey);
+        ClearPersistentStorage(); // Clean up corrupted data
+        settings = defaultSettings;
+        return false;
+    }
+
+    // Data integrity validated, load all settings efficiently
     DWORD value;
     std::string strValue;
-    
-    // Load all DWORD settings values - override defaults where they exist
+    int loadedSettings = 0;
+
+    // Load DWORD values with validation
     if (ReadRegistryValue(hKey, "KeyboardLockEnabled", value)) {
-        settings.keyboardLockEnabled = (value != 0);
+        settings.keyboardLockEnabled = (value == 1);
+        loadedSettings++;
     }
-    
     if (ReadRegistryValue(hKey, "MouseLockEnabled", value)) {
-        settings.mouseLockEnabled = (value != 0);
+        settings.mouseLockEnabled = (value == 1);
+        loadedSettings++;
     }
-    
-    if (ReadRegistryValue(hKey, "UnlockMethod", value)) {
+    if (ReadRegistryValue(hKey, "UnlockMethod", value) && value <= 2) {
         settings.unlockMethod = value;
+        loadedSettings++;
     }
-    
     if (ReadRegistryValue(hKey, "EnableFailsafe", value)) {
-        settings.enableFailsafe = (value != 0);
+        settings.enableFailsafe = (value == 1);
+        loadedSettings++;
     }
-    
     if (ReadRegistryValue(hKey, "HotkeyModifiers", value)) {
         settings.hotkeyModifiers = value;
+        loadedSettings++;
     }
-    
-    if (ReadRegistryValue(hKey, "HotkeyVirtualKey", value)) {
+    if (ReadRegistryValue(hKey, "HotkeyVirtualKey", value) &&
+        value >= MIN_HOTKEY_VK && value <= MAX_HOTKEY_VK) {
         settings.hotkeyVirtualKey = value;
+        loadedSettings++;
     }
-    
     if (ReadRegistryValue(hKey, "PasswordEnabled", value)) {
-        settings.passwordEnabled = (value != 0);
+        settings.passwordEnabled = (value == 1);
+        loadedSettings++;
     }
-    
-    if (ReadRegistryValue(hKey, "TimerDuration", value)) {
+    if (ReadRegistryValue(hKey, "TimerDuration", value) &&
+        value >= MIN_TIMER_DURATION && value <= MAX_TIMER_DURATION) {
         settings.timerDuration = value;
+        loadedSettings++;
     }
-    
     if (ReadRegistryValue(hKey, "TimerEnabled", value)) {
-        settings.timerEnabled = (value != 0);
+        settings.timerEnabled = (value == 1);
+        loadedSettings++;
     }
-    
     if (ReadRegistryValue(hKey, "WhitelistEnabled", value)) {
-        settings.whitelistEnabled = (value != 0);
+        settings.whitelistEnabled = (value == 1);
+        loadedSettings++;
     }
-    
-    if (ReadRegistryValue(hKey, "OverlayStyle", value)) {
+    if (ReadRegistryValue(hKey, "OverlayStyle", value) && value <= 3) {
         settings.overlayStyle = value;
+        loadedSettings++;
     }
-    
-    if (ReadRegistryValue(hKey, "NotificationStyle", value)) {
+    if (ReadRegistryValue(hKey, "NotificationStyle", value) && value <= 3) {
         settings.notificationStyle = value;
+        loadedSettings++;
     }
-    
     if (ReadRegistryValue(hKey, "HideFromTaskbar", value)) {
-        settings.hideFromTaskbar = (value != 0);
+        settings.hideFromTaskbar = (value == 1);
+        loadedSettings++;
     }
-    
     if (ReadRegistryValue(hKey, "StartWithWindows", value)) {
-        settings.startWithWindows = (value != 0);
+        settings.startWithWindows = (value == 1);
+        loadedSettings++;
     }
-    
-    // Productivity settings
     if (ReadRegistryValue(hKey, "USBAlertEnabled", value)) {
-        settings.usbAlertEnabled = (value != 0);
+        settings.usbAlertEnabled = (value == 1);
+        loadedSettings++;
     }
-    
     if (ReadRegistryValue(hKey, "QuickLaunchEnabled", value)) {
-        settings.quickLaunchEnabled = (value != 0);
+        settings.quickLaunchEnabled = (value == 1);
+        loadedSettings++;
     }
-    
     if (ReadRegistryValue(hKey, "WorkBreakTimerEnabled", value)) {
-        settings.workBreakTimerEnabled = (value != 0);
+        settings.workBreakTimerEnabled = (value == 1);
+        loadedSettings++;
     }
-    
     if (ReadRegistryValue(hKey, "BossKeyEnabled", value)) {
-        settings.bossKeyEnabled = (value != 0);
+        settings.bossKeyEnabled = (value == 1);
+        loadedSettings++;
     }
-    
-    // Load string values
-    if (ReadRegistryString(hKey, "LockHotkey", strValue)) {
+
+    // Load string values with length validation
+    if (ReadRegistryString(hKey, "LockHotkey", strValue) && strValue.length() <= MAX_STRING_LENGTH) {
         settings.lockHotkey = strValue;
+        loadedSettings++;
     }
-    
-    if (ReadRegistryString(hKey, "UnlockPassword", strValue)) {
+    if (ReadRegistryString(hKey, "UnlockPassword", strValue) && strValue.length() <= MAX_STRING_LENGTH) {
         settings.unlockPassword = strValue;
+        loadedSettings++;
     }
-    
-    if (ReadRegistryString(hKey, "WhitelistedKeys", strValue)) {
+    if (ReadRegistryString(hKey, "WhitelistedKeys", strValue) && strValue.length() <= MAX_STRING_LENGTH) {
         settings.whitelistedKeys = strValue;
+        loadedSettings++;
     }
-    
-    if (ReadRegistryString(hKey, "BossKeyHotkey", strValue)) {
+    if (ReadRegistryString(hKey, "BossKeyHotkey", strValue) && strValue.length() <= MAX_STRING_LENGTH) {
         settings.bossKeyHotkey = strValue;
+        loadedSettings++;
     }
 
     RegCloseKey(hKey);
-    
-    // Validate loaded settings
-    if (!ValidateSettings(settings)) {
+
+    // Validate that we loaded enough settings to consider data complete
+    if (loadedSettings < (EXPECTED_SETTINGS_COUNT * 0.8)) { // At least 80% of settings
+        // Insufficient valid data, reset to defaults
+        ClearPersistentStorage();
         settings = defaultSettings;
         return false;
     }
-    
+
     return true;
 }
 
@@ -172,8 +197,12 @@ bool SettingsCore::SaveSettings(const AppSettings& settings) {
     }
 
     bool success = true;
-    
-    // Save all settings values
+
+    // Write data integrity marker first
+    success &= WriteRegistryString(hKey, "DataIntegrity", DATA_INTEGRITY_MARKER);
+    success &= WriteRegistryValue(hKey, "SettingsCount", EXPECTED_SETTINGS_COUNT);
+
+    // Batch write all DWORD settings for efficiency
     success &= WriteRegistryValue(hKey, "KeyboardLockEnabled", settings.keyboardLockEnabled ? 1 : 0);
     success &= WriteRegistryValue(hKey, "MouseLockEnabled", settings.mouseLockEnabled ? 1 : 0);
     success &= WriteRegistryValue(hKey, "UnlockMethod", settings.unlockMethod);
@@ -188,25 +217,30 @@ bool SettingsCore::SaveSettings(const AppSettings& settings) {
     success &= WriteRegistryValue(hKey, "NotificationStyle", settings.notificationStyle);
     success &= WriteRegistryValue(hKey, "HideFromTaskbar", settings.hideFromTaskbar ? 1 : 0);
     success &= WriteRegistryValue(hKey, "StartWithWindows", settings.startWithWindows ? 1 : 0);
-    
+
     // Productivity settings
     success &= WriteRegistryValue(hKey, "USBAlertEnabled", settings.usbAlertEnabled ? 1 : 0);
     success &= WriteRegistryValue(hKey, "QuickLaunchEnabled", settings.quickLaunchEnabled ? 1 : 0);
     success &= WriteRegistryValue(hKey, "WorkBreakTimerEnabled", settings.workBreakTimerEnabled ? 1 : 0);
     success &= WriteRegistryValue(hKey, "BossKeyEnabled", settings.bossKeyEnabled ? 1 : 0);
-    
-    // Save string values
-    success &= WriteRegistryString(hKey, "LockHotkey", settings.lockHotkey);
-    success &= WriteRegistryString(hKey, "UnlockPassword", settings.unlockPassword);
-    success &= WriteRegistryString(hKey, "WhitelistedKeys", settings.whitelistedKeys);
-    success &= WriteRegistryString(hKey, "BossKeyHotkey", settings.bossKeyHotkey);
+
+    // Write string values with length validation
+    if (settings.lockHotkey.length() <= MAX_STRING_LENGTH) {
+        success &= WriteRegistryString(hKey, "LockHotkey", settings.lockHotkey);
+    }
+    if (settings.unlockPassword.length() <= MAX_STRING_LENGTH) {
+        success &= WriteRegistryString(hKey, "UnlockPassword", settings.unlockPassword);
+    }
+    if (settings.whitelistedKeys.length() <= MAX_STRING_LENGTH) {
+        success &= WriteRegistryString(hKey, "WhitelistedKeys", settings.whitelistedKeys);
+    }
+    if (settings.bossKeyHotkey.length() <= MAX_STRING_LENGTH) {
+        success &= WriteRegistryString(hKey, "BossKeyHotkey", settings.bossKeyHotkey);
+    }
 
     RegCloseKey(hKey);
-    
-    if (success) {
-        CreateBackup(settings); // Auto-backup on successful save
-    }
-    
+
+    // No backup system - focus on optimization and reliability
     return success;
 }
 
@@ -464,96 +498,6 @@ bool SettingsCore::ImportFromFile(AppSettings& settings, const std::string& file
     // Use comprehensive validation for imported data
     if (ValidateImportedSettings(newSettings)) {
         settings = newSettings;
-        return true;
-    }
-    
-    return false;
-}
-
-bool SettingsCore::CreateBackup(const AppSettings& settings) {
-    // Create backup in registry under different key
-    HKEY hKey;
-    
-    if (RegCreateKeyExA(HKEY_CURRENT_USER, BACKUP_REGISTRY_KEY, 0, NULL, 0, KEY_WRITE, NULL, &hKey, NULL) != ERROR_SUCCESS) {
-        return false;
-    }
-
-    bool success = true;
-    // Save all settings values (same as main SaveSettings)
-    success &= WriteRegistryValue(hKey, "KeyboardLockEnabled", settings.keyboardLockEnabled ? 1 : 0);
-    success &= WriteRegistryValue(hKey, "MouseLockEnabled", settings.mouseLockEnabled ? 1 : 0);
-    success &= WriteRegistryValue(hKey, "UnlockMethod", settings.unlockMethod);
-    success &= WriteRegistryValue(hKey, "EnableFailsafe", settings.enableFailsafe ? 1 : 0);
-    success &= WriteRegistryValue(hKey, "HotkeyModifiers", settings.hotkeyModifiers);
-    success &= WriteRegistryValue(hKey, "HotkeyVirtualKey", settings.hotkeyVirtualKey);
-    success &= WriteRegistryValue(hKey, "PasswordEnabled", settings.passwordEnabled ? 1 : 0);
-    success &= WriteRegistryValue(hKey, "TimerDuration", settings.timerDuration);
-    success &= WriteRegistryValue(hKey, "TimerEnabled", settings.timerEnabled ? 1 : 0);
-    success &= WriteRegistryValue(hKey, "WhitelistEnabled", settings.whitelistEnabled ? 1 : 0);
-    success &= WriteRegistryValue(hKey, "OverlayStyle", settings.overlayStyle);
-    success &= WriteRegistryValue(hKey, "NotificationStyle", settings.notificationStyle);
-    success &= WriteRegistryValue(hKey, "HideFromTaskbar", settings.hideFromTaskbar ? 1 : 0);
-    success &= WriteRegistryValue(hKey, "StartWithWindows", settings.startWithWindows ? 1 : 0);
-    
-    // Productivity settings
-    success &= WriteRegistryValue(hKey, "USBAlertEnabled", settings.usbAlertEnabled ? 1 : 0);
-    success &= WriteRegistryValue(hKey, "QuickLaunchEnabled", settings.quickLaunchEnabled ? 1 : 0);
-    success &= WriteRegistryValue(hKey, "WorkBreakTimerEnabled", settings.workBreakTimerEnabled ? 1 : 0);
-    success &= WriteRegistryValue(hKey, "BossKeyEnabled", settings.bossKeyEnabled ? 1 : 0);
-    
-    // Save string values
-    success &= WriteRegistryString(hKey, "LockHotkey", settings.lockHotkey);
-    success &= WriteRegistryString(hKey, "UnlockPassword", settings.unlockPassword);
-    success &= WriteRegistryString(hKey, "WhitelistedKeys", settings.whitelistedKeys);
-    success &= WriteRegistryString(hKey, "BossKeyHotkey", settings.bossKeyHotkey);
-
-    RegCloseKey(hKey);
-    return success;
-}
-
-bool SettingsCore::RestoreFromBackup(AppSettings& settings) {
-    HKEY hKey;
-    
-    if (RegOpenKeyExA(HKEY_CURRENT_USER, BACKUP_REGISTRY_KEY, 0, KEY_READ, &hKey) != ERROR_SUCCESS) {
-        return false;
-    }
-
-    AppSettings backupSettings = defaultSettings;
-    DWORD value;
-    std::string strValue;
-    
-    // Read all settings values (same as main LoadSettings)
-    if (ReadRegistryValue(hKey, "KeyboardLockEnabled", value)) backupSettings.keyboardLockEnabled = (value != 0);
-    if (ReadRegistryValue(hKey, "MouseLockEnabled", value)) backupSettings.mouseLockEnabled = (value != 0);
-    if (ReadRegistryValue(hKey, "UnlockMethod", value)) backupSettings.unlockMethod = value;
-    if (ReadRegistryValue(hKey, "EnableFailsafe", value)) backupSettings.enableFailsafe = (value != 0);
-    if (ReadRegistryValue(hKey, "HotkeyModifiers", value)) backupSettings.hotkeyModifiers = value;
-    if (ReadRegistryValue(hKey, "HotkeyVirtualKey", value)) backupSettings.hotkeyVirtualKey = value;
-    if (ReadRegistryValue(hKey, "PasswordEnabled", value)) backupSettings.passwordEnabled = (value != 0);
-    if (ReadRegistryValue(hKey, "TimerDuration", value)) backupSettings.timerDuration = value;
-    if (ReadRegistryValue(hKey, "TimerEnabled", value)) backupSettings.timerEnabled = (value != 0);
-    if (ReadRegistryValue(hKey, "WhitelistEnabled", value)) backupSettings.whitelistEnabled = (value != 0);
-    if (ReadRegistryValue(hKey, "OverlayStyle", value)) backupSettings.overlayStyle = value;
-    if (ReadRegistryValue(hKey, "NotificationStyle", value)) backupSettings.notificationStyle = value;
-    if (ReadRegistryValue(hKey, "HideFromTaskbar", value)) backupSettings.hideFromTaskbar = (value != 0);
-    if (ReadRegistryValue(hKey, "StartWithWindows", value)) backupSettings.startWithWindows = (value != 0);
-    
-    // Productivity settings
-    if (ReadRegistryValue(hKey, "USBAlertEnabled", value)) backupSettings.usbAlertEnabled = (value != 0);
-    if (ReadRegistryValue(hKey, "QuickLaunchEnabled", value)) backupSettings.quickLaunchEnabled = (value != 0);
-    if (ReadRegistryValue(hKey, "WorkBreakTimerEnabled", value)) backupSettings.workBreakTimerEnabled = (value != 0);
-    if (ReadRegistryValue(hKey, "BossKeyEnabled", value)) backupSettings.bossKeyEnabled = (value != 0);
-    
-    // Read string values
-    if (ReadRegistryString(hKey, "LockHotkey", strValue)) backupSettings.lockHotkey = strValue;
-    if (ReadRegistryString(hKey, "UnlockPassword", strValue)) backupSettings.unlockPassword = strValue;
-    if (ReadRegistryString(hKey, "WhitelistedKeys", strValue)) backupSettings.whitelistedKeys = strValue;
-    if (ReadRegistryString(hKey, "BossKeyHotkey", strValue)) backupSettings.bossKeyHotkey = strValue;
-
-    RegCloseKey(hKey);
-    
-    if (ValidateSettings(backupSettings)) {
-        settings = backupSettings;
         return true;
     }
     

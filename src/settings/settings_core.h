@@ -107,7 +107,6 @@ struct AppSettings {
 class SettingsCore {
 private:
     static const char* REGISTRY_KEY;
-    static const char* BACKUP_REGISTRY_KEY;
     AppSettings defaultSettings;
     
 public:
@@ -138,10 +137,6 @@ public:
     // Import/Export
     bool ExportToFile(const AppSettings& settings, const std::string& filepath);
     bool ImportFromFile(AppSettings& settings, const std::string& filepath);
-    
-    // Backup/Restore
-    bool CreateBackup(const AppSettings& settings);
-    bool RestoreFromBackup(AppSettings& settings);
     
     // Systematic layer management
     void UpdateAllLayers(const AppSettings& settings);
