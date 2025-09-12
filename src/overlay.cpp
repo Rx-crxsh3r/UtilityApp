@@ -105,12 +105,6 @@ void ScreenOverlay::UpdateOverlayStyle() {
         case OVERLAY_BLUR:
             SetupBlurEffect();
             break;
-        case OVERLAY_DIM:
-            SetupDimEffect();
-            break;
-        case OVERLAY_BLACK:
-            SetupBlackEffect();
-            break;
         case OVERLAY_NONE:
         default:
             HideOverlay();
@@ -133,36 +127,6 @@ void ScreenOverlay::SetupBlurEffect() {
     bb.hRgnBlur = CreateRectRgn(0, 0, -1, -1);
     DwmEnableBlurBehindWindow(hOverlayWindow, &bb);
     if (bb.hRgnBlur) DeleteObject(bb.hRgnBlur);
-}
-
-void ScreenOverlay::SetupDimEffect() {
-    // Set semi-transparent dark background
-    SetLayeredWindowAttributes(hOverlayWindow, 0, 120, LWA_ALPHA);
-    
-    // Create a dark brush
-    if (hBackgroundBrush) DeleteObject(hBackgroundBrush);
-    hBackgroundBrush = CreateSolidBrush(RGB(0, 0, 0));
-    
-    // Disable blur effect
-    DWM_BLURBEHIND bb = {};
-    bb.dwFlags = DWM_BB_ENABLE;
-    bb.fEnable = FALSE;
-    DwmEnableBlurBehindWindow(hOverlayWindow, &bb);
-}
-
-void ScreenOverlay::SetupBlackEffect() {
-    // Set opaque black background
-    SetLayeredWindowAttributes(hOverlayWindow, 0, 255, LWA_ALPHA);
-    
-    // Create a black brush
-    if (hBackgroundBrush) DeleteObject(hBackgroundBrush);
-    hBackgroundBrush = CreateSolidBrush(RGB(0, 0, 0));
-    
-    // Disable blur effect
-    DWM_BLURBEHIND bb = {};
-    bb.dwFlags = DWM_BB_ENABLE;
-    bb.fEnable = FALSE;
-    DwmEnableBlurBehindWindow(hOverlayWindow, &bb);
 }
 
 LRESULT CALLBACK ScreenOverlay::OverlayWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {

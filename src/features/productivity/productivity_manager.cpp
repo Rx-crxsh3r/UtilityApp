@@ -3,8 +3,6 @@
 
 #include "productivity_manager.h"
 #include "../../notifications.h"
-#include "../../custom_notifications.h"
-#include "../../audio_manager.h"
 #include "../../settings.h"
 #include <dbt.h>
 #include <setupapi.h>
@@ -12,6 +10,7 @@
 #include <shellapi.h>
 #include <tlhelp32.h>
 #include <algorithm>
+#include <mmsystem.h> // For PlaySoundA
 
 // Registry constants
 const char* ProductivityManager::REGISTRY_KEY = "SOFTWARE\\UtilityApp\\Productivity";
@@ -120,11 +119,8 @@ bool ProductivityManager::HandleDeviceChange(WPARAM wParam, LPARAM lParam) {
                 // Use centralized notification system
                 ShowNotification(mainWindow, NOTIFY_USB_DEVICE_CONNECTED, message.c_str());
                 
-                // Play notification sound only for CUSTOM notification style
-                extern AppSettings g_appSettings;
-                if (g_appSettings.notificationStyle == 0) { // NOTIFY_STYLE_CUSTOM
-                    PlayNotificationSound(SOUND_USB_DEVICE);
-                }
+                // Play notification sound
+                PlaySoundA("resources\\notif.wav", NULL, SND_FILENAME | SND_ASYNC | SND_NODEFAULT);
                 
                 return true;
             }
@@ -151,10 +147,8 @@ bool ProductivityManager::HandleDeviceChange(WPARAM wParam, LPARAM lParam) {
                 ShowNotification(mainWindow, NOTIFY_USB_DEVICE_DISCONNECTED, message.c_str());
                 
                 // Play notification sound only for CUSTOM notification style
-                extern AppSettings g_appSettings;
-                if (g_appSettings.notificationStyle == 0) { // NOTIFY_STYLE_CUSTOM
-                    PlayNotificationSound(SOUND_USB_DEVICE);
-                }
+                // Play notification sound
+                PlaySoundA("resources\\notif.wav", NULL, SND_FILENAME | SND_ASYNC | SND_NODEFAULT);
                 
                 return true;
             }
@@ -428,11 +422,8 @@ void ProductivityManager::HandleTimerExpired() {
         ShowNotification(notificationWindow, NOTIFY_INPUT_UNLOCKED, message.c_str());
     }
     
-    // Play work/break timer sound only for CUSTOM notification style
-    extern AppSettings g_appSettings;
-    if (g_appSettings.notificationStyle == 0) { // NOTIFY_STYLE_CUSTOM
-        PlayNotificationSound(SOUND_WORK_BREAK);
-    }
+    // Play work/break timer sound
+    PlaySoundA("resources\\notif.wav", NULL, SND_FILENAME | SND_ASYNC | SND_NODEFAULT);
     
     // Auto-start next timer for proper Pomodoro workflow
     if (nextMode != TIMER_DISABLED) {
@@ -461,10 +452,8 @@ void ProductivityManager::CheckAndShowFiveMinuteWarning() {
         }
         
         // Play notification sound only for CUSTOM notification style
-        extern AppSettings g_appSettings;
-        if (g_appSettings.notificationStyle == 0) { // NOTIFY_STYLE_CUSTOM
-            PlayNotificationSound(SOUND_WORK_BREAK);
-        }
+        // Play work/break timer sound
+        PlaySoundA("resources\\notif.wav", NULL, SND_FILENAME | SND_ASYNC | SND_NODEFAULT);
     }
 }
 

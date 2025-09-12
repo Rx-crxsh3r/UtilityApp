@@ -1,7 +1,6 @@
 // src/notifications.cpp
 
 #include "notifications.h"
-#include "custom_notifications.h"
 #include "resource.h"
 #include "settings.h"
 #include <shellapi.h>
@@ -10,26 +9,23 @@
 extern bool g_settingsLoaded;
 
 void ShowNotification(HWND hwnd, NotificationType type, const char* customMessage) {
-    // If settings aren't loaded yet, defer the notification or use safe defaults
+    // If settings aren't loaded yet, use safe defaults
     if (!g_settingsLoaded) {
-        // Use custom notifications as safe default before settings are loaded
-        extern CustomNotificationSystem* g_customNotifications;
-        if (g_customNotifications) {
-            const char* message = customMessage ? customMessage : "Application notification";
-            g_customNotifications->ShowNotification("UtilityApp", message, 4000, NOTIFY_LEVEL_INFO);
-        }
+        // Use system tray notifications as safe default
+        const char* message = customMessage ? customMessage : "Application notification";
+        ShowBalloonTip(hwnd, "UtilityApp", message, NIIF_INFO);
         return;
     }
-    
-    // Check notification style setting from appearance tab
+
+    // Check if notifications are disabled
     if (g_appSettings.notificationStyle == 3) { // NOTIFY_STYLE_NONE
         return; // No notifications
     }
-    
+
     const char* title = "UtilityApp";
     const char* message = customMessage;
     DWORD iconType = NIIF_INFO;
-    
+
     if (!customMessage) {
         switch (type) {
             case NOTIFY_APP_START:
@@ -109,26 +105,9 @@ void ShowNotification(HWND hwnd, NotificationType type, const char* customMessag
                 break;
         }
     }
-    
-    if (g_appSettings.notificationStyle == 1) { // NOTIFY_STYLE_WINDOWS (MessageBox)
-        // Use Windows native message boxes
-        MessageBoxA(NULL, message, title, MB_OK | 
-                   (iconType == NIIF_ERROR ? MB_ICONERROR : 
-                    iconType == NIIF_WARNING ? MB_ICONWARNING : MB_ICONINFORMATION) | 
-                   MB_TOPMOST | MB_SYSTEMMODAL);
-        return;
-    }
-    
-    if (g_appSettings.notificationStyle == 2) { // NOTIFY_STYLE_WINDOWS_NOTIFICATIONS
-        // Use Windows Action Center notifications (balloon tips)
-        ShowBalloonTip(hwnd, title, message, iconType);
-        return;
-    }
-    
-    // NOTIFY_STYLE_CUSTOM (default) - use custom notification system
-    // OPTIMIZATION: Defer notification display to avoid interfering with input processing
-    // This prevents notifications from causing input lag during password entry
-    PostMessage(hwnd, WM_USER + 102, (WPARAM)type, (LPARAM)_strdup(message));
+
+    // Use system tray notifications for all cases (simplified)
+    ShowBalloonTip(hwnd, title, message, iconType);
 }
 
 void ShowBalloonTip(HWND hwnd, const char* title, const char* message, DWORD iconType) {

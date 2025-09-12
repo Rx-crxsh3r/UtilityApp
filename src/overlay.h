@@ -7,9 +7,7 @@
 // Overlay styles
 enum OverlayStyle {
     OVERLAY_BLUR = 0,
-    OVERLAY_DIM = 1,
-    OVERLAY_BLACK = 2,
-    OVERLAY_NONE = 3
+    OVERLAY_NONE = 1
 };
 
 class ScreenOverlay {
@@ -26,8 +24,6 @@ private:
     void CreateOverlayWindow();
     void UpdateOverlayStyle();
     void SetupBlurEffect();
-    void SetupDimEffect();
-    void SetupBlackEffect();
     
 public:
     ScreenOverlay();

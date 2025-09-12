@@ -18,11 +18,12 @@ if %errorlevel% neq 0 (
 )
 
 echo [2/5] Compiling core modules...
-gcc -c src\main.cpp -o build\main.o
-gcc -c src\failsafe.cpp -o build\failsafe.o
+REM Parallel compilation for better performance
+start /b gcc -c src\main.cpp -o build\main.o
+start /b gcc -c src\failsafe.cpp -o build\failsafe.o
+start /b gcc -c src\tray_icon.cpp -o build\tray_icon.o
+start /b gcc -c src\audio_manager.cpp -o build\audio_manager.o
 gcc -c src\input_blocker.cpp -o build\input_blocker.o
-gcc -c src\tray_icon.cpp -o build\tray_icon.o
-gcc -c src\audio_manager.cpp -o build\audio_manager.o
 gcc -c src\custom_notifications.cpp -o build\custom_notifications.o
 gcc -c src\notifications.cpp -o build\notifications.o
 gcc -c src\overlay.cpp -o build\overlay.o
