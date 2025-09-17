@@ -111,9 +111,7 @@ UtilityApp/
 │   ├── resources.rc                # Resource definitions
 │   └── notif.wav                   # Notification sound
 ├── docs/
-│   ├── fileformat.md               # Technical architecture
-│   ├── HOTKEY_SYSTEM.md            # Hotkey documentation
-│   └── SETTINGS.md                 # Settings guide
+│   ├──                             # Empty folder <Placeholder for docs files>
 ├── build.bat                       # Automated build script
 ├── clean.bat                       # Build cleanup script
 └── README.md                       # This file
