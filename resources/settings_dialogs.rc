@@ -1,0 +1,143 @@
+// settings_dialogs.rc
+// Resource file for settings dialogs
+
+#include <windows.h>
+#include <commctrl.h>
+#include "../src/resource.h"
+
+// Main Settings Dialog
+IDD_SETTINGS_DIALOG DIALOGEX 0, 0, 450, 350
+STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "UtilityApp Settings"
+FONT 8, "MS Shell Dlg"
+BEGIN
+    CONTROL         "", IDC_TAB_CONTROL, "SysTabControl32", TCS_TABS | WS_CHILD | WS_VISIBLE, 10, 10, 430, 300
+    LTEXT           "", IDC_LABEL_HOTKEY_WARNING, 10, 295, 300, 8, NOT WS_VISIBLE
+    DEFPUSHBUTTON   "OK", IDC_BTN_OK, 290, 320, 50, 14
+    PUSHBUTTON      "Cancel", IDC_BTN_CANCEL, 345, 320, 50, 14
+    PUSHBUTTON      "Apply", IDC_BTN_APPLY, 235, 320, 50, 14
+END
+
+// Lock & Input Tab Dialog
+IDD_TAB_LOCK_INPUT DIALOGEX 0, 0, 400, 250
+STYLE DS_CONTROL | WS_CHILD
+FONT 8, "MS Shell Dlg"
+BEGIN
+    GROUPBOX        "Input Types", -1, 10, 10, 180, 60
+    CONTROL         "Lock Keyboard", IDC_CHECK_KEYBOARD, "Button", BS_AUTOCHECKBOX | WS_CHILD | WS_VISIBLE | WS_TABSTOP, 20, 25, 80, 10
+    CONTROL         "Lock Mouse", IDC_CHECK_MOUSE, "Button", BS_AUTOCHECKBOX | WS_CHILD | WS_VISIBLE | WS_TABSTOP, 20, 40, 80, 10
+    
+    GROUPBOX        "Unlock Method", -1, 200, 10, 180, 80
+    CONTROL         "Password", IDC_RADIO_PASSWORD, "Button", BS_AUTORADIOBUTTON | WS_GROUP | WS_CHILD | WS_VISIBLE | WS_TABSTOP, 210, 25, 60, 10
+    PUSHBUTTON      "Configure...", IDC_BTN_PASSWORD_CFG, 280, 23, 60, 14
+    CONTROL         "Timer", IDC_RADIO_TIMER, "Button", BS_AUTORADIOBUTTON | WS_CHILD | WS_VISIBLE | WS_TABSTOP, 210, 45, 60, 10
+    PUSHBUTTON      "Configure...", IDC_BTN_TIMER_CFG, 280, 43, 60, 14
+    
+    GROUPBOX        "Additional Features", -1, 200, 100, 180, 50
+    CONTROL         "Enable Key Whitelist", IDC_CHECK_WHITELIST, "Button", BS_AUTOCHECKBOX | WS_CHILD | WS_VISIBLE | WS_TABSTOP, 210, 115, 80, 10
+    PUSHBUTTON      "Configure...", IDC_BTN_WHITELIST_CFG, 280, 113, 60, 14
+    
+    GROUPBOX        "Hotkeys", -1, 10, 80, 370, 80
+    LTEXT           "Lock Hotkey:", -1, 20, 100, 50, 8
+    EDITTEXT        IDC_EDIT_HOTKEY_LOCK, 80, 98, 100, 14, ES_READONLY
+    PUSHBUTTON      "Save", IDC_BTN_SAVE_HOTKEY, 200, 98, 40, 14, WS_DISABLED | NOT WS_VISIBLE
+    PUSHBUTTON      "Cancel", IDC_BTN_CANCEL_HOTKEY, 245, 98, 40, 14, WS_DISABLED | NOT WS_VISIBLE
+    LTEXT           "", IDC_LABEL_HOTKEY_HINT, 20, 120, 350, 8, NOT WS_VISIBLE
+    
+    LTEXT           "Click in the hotkey field above to change the lock hotkey combination.", -1, 20, 140, 350, 16
+END
+
+// Productivity Tab Dialog
+IDD_TAB_PRODUCTIVITY DIALOGEX 0, 0, 400, 250
+STYLE DS_CONTROL | WS_CHILD
+FONT 8, "MS Shell Dlg"
+BEGIN
+    GROUPBOX        "Productivity Features", -1, 10, 10, 370, 160
+    CONTROL         "Enable USB Device Alerts", IDC_CHECK_USB_ALERT, "Button", BS_AUTOCHECKBOX | WS_CHILD | WS_VISIBLE | WS_TABSTOP, 20, 25, 140, 10
+    CONTROL         "Enable Quick Launch Hotkeys", IDC_CHECK_QUICK_LAUNCH, "Button", BS_AUTOCHECKBOX | WS_CHILD | WS_VISIBLE | WS_TABSTOP, 20, 40, 140, 10
+    CONTROL         "Enable Work/Break Timer", IDC_CHECK_TIMER, "Button", BS_AUTOCHECKBOX | WS_CHILD | WS_VISIBLE | WS_TABSTOP, 20, 55, 140, 10
+    PUSHBUTTON      "Configure Apps...", IDC_BTN_QUICK_LAUNCH_CONFIG, 180, 38, 80, 14
+    PUSHBUTTON      "Timer Settings...", IDC_BTN_TIMER_CONFIG, 270, 38, 80, 14
+    PUSHBUTTON      "Start Work Session", IDC_BTN_START_WORK_SESSION, 20, 75, 100, 20
+    
+    LTEXT           "USB Alert: Monitor USB device connections", -1, 40, 110, 300, 8
+    LTEXT           "Quick Launch: Ctrl+F1 (Notepad), Ctrl+F2 (Calculator), Ctrl+Alt+F3 (Explorer)", -1, 40, 125, 300, 8
+    LTEXT           "Timer: 25min work, 5min break cycles with notifications", -1, 40, 140, 300, 8
+END
+
+// Privacy & Security Tab Dialog
+IDD_TAB_PRIVACY DIALOGEX 0, 0, 400, 250
+STYLE DS_CONTROL | WS_CHILD
+FONT 8, "MS Shell Dlg"
+BEGIN
+    GROUPBOX        "Privacy & Security Features", -1, 10, 10, 370, 230
+    CONTROL         "Start with Windows", IDC_CHECK_START_WINDOWS, "Button", BS_AUTOCHECKBOX | WS_CHILD | WS_VISIBLE | WS_TABSTOP, 20, 30, 120, 10
+    LTEXT           "Automatically starts the app when Windows boots", -1, 40, 45, 300, 8
+    
+    GROUPBOX        "Boss Key (Quick Hide)", -1, 20, 70, 340, 120
+    CONTROL         "Enable Boss Key", IDC_CHECK_BOSS_KEY, "Button", BS_AUTOCHECKBOX | WS_CHILD | WS_VISIBLE | WS_TABSTOP, 30, 85, 100, 10
+    LTEXT           "Boss Key Hotkey:", -1, 30, 105, 80, 8
+    EDITTEXT        IDC_EDIT_HOTKEY_BOSS, 110, 103, 100, 14, ES_READONLY
+    PUSHBUTTON      "Test", IDC_BTN_BOSS_KEY_TEST, 220, 103, 40, 14
+    LTEXT           "Boss Key instantly hides ALL desktop windows. Press again to restore.", -1, 30, 115, 320, 8
+END
+
+// Appearance Tab Dialog
+IDD_TAB_APPEARANCE DIALOGEX 0, 0, 400, 250
+STYLE DS_CONTROL | WS_CHILD
+FONT 8, "MS Shell Dlg"
+BEGIN
+    GROUPBOX        "Overlay Style", -1, 10, 10, 370, 120
+    LTEXT           "", IDC_LABEL_OVERLAY_DESC, 20, 25, 350, 16
+    
+    CONTROL         "Blur", IDC_RADIO_BLUR, "Button", BS_AUTORADIOBUTTON | WS_GROUP | WS_CHILD | WS_VISIBLE | WS_TABSTOP, 30, 50, 40, 10
+    LTEXT           "Apply a blur effect to the background", -1, 80, 50, 200, 8
+    
+    CONTROL         "Dim", IDC_RADIO_DIM, "Button", BS_AUTORADIOBUTTON | WS_CHILD | WS_VISIBLE | WS_TABSTOP, 30, 70, 40, 10
+    LTEXT           "Darken the background with transparency", -1, 80, 70, 200, 8
+    
+    CONTROL         "Black Screen", IDC_RADIO_BLACK, "Button", BS_AUTORADIOBUTTON | WS_CHILD | WS_VISIBLE | WS_TABSTOP, 30, 90, 60, 10
+    LTEXT           "Show a solid black overlay", -1, 100, 90, 200, 8
+    
+    CONTROL         "None", IDC_RADIO_NONE, "Button", BS_AUTORADIOBUTTON | WS_CHILD | WS_VISIBLE | WS_TABSTOP, 30, 110, 40, 10
+    LTEXT           "No visual overlay (input still locked)", -1, 80, 110, 200, 8
+    
+    GROUPBOX        "Notification Style", -1, 10, 140, 370, 110
+    LTEXT           "", IDC_LABEL_NOTIFY_DESC, 20, 155, 350, 16
+    
+    CONTROL         "Custom", IDC_RADIO_NOTIFY_CUSTOM, "Button", BS_AUTORADIOBUTTON | WS_GROUP | WS_CHILD | WS_VISIBLE | WS_TABSTOP, 30, 175, 50, 10
+    LTEXT           "Modern black-themed popup notifications", -1, 90, 175, 200, 8
+    
+    CONTROL         "Windows", IDC_RADIO_NOTIFY_WINDOWS, "Button", BS_AUTORADIOBUTTON | WS_CHILD | WS_VISIBLE | WS_TABSTOP, 30, 195, 55, 10
+    LTEXT           "Use standard Windows message boxes", -1, 95, 195, 200, 8
+    
+    CONTROL         "Windows Notifications", IDC_RADIO_NOTIFY_WINDOWS_NOTIF, "Button", BS_AUTORADIOBUTTON | WS_CHILD | WS_VISIBLE | WS_TABSTOP, 30, 215, 120, 10
+    LTEXT           "Use Windows Action Center notifications", -1, 160, 215, 200, 8
+    
+    CONTROL         "None", IDC_RADIO_NOTIFY_NONE, "Button", BS_AUTORADIOBUTTON | WS_CHILD | WS_VISIBLE | WS_TABSTOP, 30, 235, 40, 10
+    LTEXT           "Disable all notifications", -1, 80, 235, 200, 8
+END
+
+// Data Tab Dialog
+IDD_TAB_DATA DIALOGEX 0, 0, 420, 270
+STYLE DS_CONTROL | WS_CHILD | WS_VISIBLE
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    GROUPBOX        "Settings Management", -1, 10, 10, 400, 100
+    LTEXT           "Manage your application settings and configuration files.", IDC_LABEL_DATA_DESC, 20, 25, 380, 16
+    
+    PUSHBUTTON      "Save Settings", IDC_BTN_SAVE_SETTINGS, 30, 45, 80, 25
+    LTEXT           "Save current settings permanently", -1, 120, 50, 150, 8
+    
+    PUSHBUTTON      "Reset to Default", IDC_BTN_RESET_SETTINGS, 30, 75, 80, 25
+    LTEXT           "Reset all settings to factory defaults", -1, 120, 80, 150, 8
+    
+    GROUPBOX        "Import/Export Settings", -1, 10, 120, 400, 100
+    LTEXT           "Backup and restore your settings using configuration files.", -1, 20, 135, 380, 16
+    
+    PUSHBUTTON      "Load Settings", IDC_BTN_LOAD_SETTINGS, 30, 155, 80, 25
+    LTEXT           "Load settings from a configuration file", -1, 120, 160, 150, 8
+    
+    PUSHBUTTON      "Export Settings", IDC_BTN_EXPORT_SETTINGS, 30, 185, 80, 25
+    LTEXT           "Export current settings to a file", -1, 120, 190, 150, 8
+END

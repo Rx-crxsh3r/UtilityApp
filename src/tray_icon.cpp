@@ -10,7 +10,7 @@ void AddTrayIcon(HWND hwnd) {
     nid.cbSize = sizeof(NOTIFYICONDATAA);
     nid.hWnd = hwnd;
     nid.uID = 1;
-    nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
+    nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP; // Removed NIF_INFO from initial setup
     nid.uCallbackMessage = WM_TRAY_ICON_MSG;
     nid.hIcon = (HICON)LoadImage(GetModuleHandle(NULL), MAKEINTRESOURCE(IDI_APPICON), IMAGE_ICON, 
                                 GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR);

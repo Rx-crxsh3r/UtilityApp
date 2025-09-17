@@ -1,49 +1,108 @@
 // src/main.cpp
 
 #include <windows.h>
+#include <string>
 #include "resource.h"
 #include "tray_icon.h"
 #include "input_blocker.h"
 #include "failsafe.h"
 #include "notifications.h"
+#include "settings.h"
+#include "overlay.h"
+#include "custom_notifications.h"
+#include "audio_manager.h"
+#include "features/productivity/productivity_manager.h"
+#include "features/privacy/privacy_manager.h"
+
+// Forward declarations
+extern Failsafe failsafeHandler;
+extern const char CLASS_NAME[];
+extern HWND g_mainWindow;
+
+// Function to register hotkeys based on current settings
+void RegisterHotkeyFromSettings(HWND hwnd);
+
+#include "features/lock_input/password_manager.h"
 
 // Global variables
 extern const char CLASS_NAME[] = "UtilityAppClass";
 Failsafe failsafeHandler;
+HWND g_mainWindow = NULL; // Global main window handle for settings updates
+
+// Global manager instances
+ProductivityManager g_productivityManager;
+PrivacyManager g_privacyManager;
+
+// Function declarations
+LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+void RegisterHotkeyFromSettings(HWND hwnd);
 
 // Window Procedure
 LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     switch (uMsg) {
-        case WM_CREATE:
+        case WM_CREATE: {
+            // Initialize settings system FIRST - before any notifications
+            InitializeSettings();
+            
+            // Initialize custom notification system AFTER settings are loaded
+            InitializeCustomNotifications();
+            
+            // Initialize audio system
+            InitializeAudio();
+            
             // Initialize input blocker with window handle for performance
             InitializeInputBlocker(hwnd);
+            
+            // Initialize productivity manager with main window
+            g_productivityManager.SetMainWindow(hwnd);
+            
+            // Initialize privacy manager with main window
+            g_privacyManager.SetMainWindow(hwnd);
+            
+            // Apply all loaded settings to the feature managers
+            g_settingsCore.ApplySettings(g_appSettings, hwnd);
+            
             // Add the icon to the system tray on window creation
             AddTrayIcon(hwnd);
-            // Show startup notification
+            
+            // Show startup notification (settings are now loaded)
             ShowNotification(hwnd, NOTIFY_APP_START);
-            // Register the global hotkeys
-            // Lock: Ctrl + Shift + Esc + I (simplified to Ctrl + Shift + I for now)
-            if (!RegisterHotKey(hwnd, HOTKEY_ID_LOCK, MOD_CONTROL | MOD_SHIFT, 'I')) {
-                 MessageBoxA(hwnd, "Failed to register lock hotkey!", "Error", MB_OK | MB_ICONERROR);
-                 ShowNotification(hwnd, NOTIFY_HOTKEY_ERROR, "Failed to register lock hotkey");
-            }
-            // Unlock: Ctrl + Esc + O (simplified to Ctrl + O for now)
-            if (!RegisterHotKey(hwnd, HOTKEY_ID_UNLOCK, MOD_CONTROL, 'O')) {
-                 MessageBoxA(hwnd, "Failed to register unlock hotkey!", "Error", MB_OK | MB_ICONERROR);
-                 ShowNotification(hwnd, NOTIFY_HOTKEY_ERROR, "Failed to register unlock hotkey");
-            }
+            
+            // Register hotkeys based on settings
+            RegisterHotkeyFromSettings(hwnd);
+            
             // Install the keyboard hook to listen for unlock sequence
             InstallHook();
             break;
+        }
 
         case WM_HOTKEY:
             // Handle the global hotkey press
             if (wParam == HOTKEY_ID_LOCK) {
                 ToggleInputLock(hwnd);
             } else if (wParam == HOTKEY_ID_UNLOCK) {
-                // Force unlock
+                // Regular unlock (Ctrl+O)
                 if (IsInputLocked()) {
                     ToggleInputLock(hwnd);
+                }
+            } else if (wParam >= 5000 && wParam < 5100) {
+                // Quick launch hotkeys (5000-5099 range)
+                auto apps = g_productivityManager.GetQuickLaunchApps();
+                int appIndex = wParam - 5000;
+                if (appIndex < apps.size() && apps[appIndex].enabled) {
+                    // Pass the hotkey ID directly
+                    if (g_productivityManager.ExecuteQuickLaunchApp(wParam)) {
+                        ShowNotification(hwnd, NOTIFY_APP_START, "Application launched successfully");
+                    } else {
+                        ShowNotification(hwnd, NOTIFY_HOTKEY_ERROR, "Failed to launch application");
+                    }
+                }
+            } else if (wParam == 9001) {
+                // Boss Key hotkey (registered by PrivacyManager)
+                if (g_privacyManager.IsBossKeyActive()) {
+                    g_privacyManager.DeactivateBossKey();
+                } else {
+                    g_privacyManager.ActivateBossKey();
                 }
             }
             break;
@@ -68,10 +127,11 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
                     ToggleInputLock(hwnd);
                     break;
                 case IDM_SETTINGS:
-                    MessageBoxA(hwnd, "Settings dialog coming soon!", "Settings", MB_OK | MB_ICONINFORMATION);
+                    ShowSettingsDialog(hwnd);
                     break;
                 case IDM_CHANGE_HOTKEYS:
-                    MessageBoxA(hwnd, "Hotkey configuration coming soon!", "Change Hotkeys", MB_OK | MB_ICONINFORMATION);
+                    // Open settings dialog directly to Lock & Input tab
+                    ShowSettingsDialog(hwnd);
                     break;
                 case IDM_CHANGE_PASSWORD:
                     MessageBoxA(hwnd, "Password configuration coming soon!", "Change Password", MB_OK | MB_ICONINFORMATION);
@@ -124,6 +184,82 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
             }
             break;
             
+        case WM_USER + 101: {
+            // Custom message: Check custom password validation (deferred from hook)
+            // wParam contains the current buffer length for optimization
+            extern std::wstring g_passwordBuffer;
+            if (IsInputLocked() && wParam >= 3) {
+                // OPTIMIZATION: More efficient string conversion to reduce memory usage
+                std::string currentInput;
+                size_t bufferLen = std::min((size_t)wParam, (size_t)32); // Reasonable password limit
+                currentInput.reserve(bufferLen + 1);
+                
+                // Convert wstring to string properly for password validation
+                for (size_t i = 0; i < g_passwordBuffer.length(); i++) {
+                    currentInput += (char)g_passwordBuffer[i];
+                }
+                
+                // Check if this matches the custom password
+                if (g_passwordManager.ValidatePassword(currentInput)) {
+                    PostMessage(hwnd, WM_USER + 100, 0, 0); // Trigger unlock
+                    g_passwordBuffer.clear();
+                } else {
+                    // Also check if the end of the buffer matches the password for rolling validation
+                    if (currentInput.length() > 8) { // Only check rolling for longer inputs
+                        for (size_t start = 1; start < currentInput.length() - 3; start++) {
+                            std::string substring = currentInput.substr(start);
+                            if (g_passwordManager.ValidatePassword(substring)) {
+                                PostMessage(hwnd, WM_USER + 100, 0, 0); // Trigger unlock
+                                g_passwordBuffer.clear();
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            break;
+        }
+        
+        case WM_USER + 102: {
+            // Deferred notification display to prevent input lag
+            NotificationType type = (NotificationType)wParam;
+            char* deferredMessage = (char*)lParam;
+            
+            const char* title = "UtilityApp";
+            const char* message = deferredMessage ? deferredMessage : "Notification";
+            DWORD iconType = NIIF_INFO;
+            NotificationLevel level = NOTIFY_LEVEL_INFO;
+            
+            // Set appropriate icon and level based on type
+            switch (type) {
+                case NOTIFY_INPUT_LOCKED:
+                case NOTIFY_FAILSAFE_TRIGGERED:
+                    iconType = NIIF_WARNING;
+                    level = NOTIFY_LEVEL_WARNING;
+                    break;
+                case NOTIFY_HOTKEY_ERROR:
+                case NOTIFY_SETTINGS_ERROR:
+                    iconType = NIIF_ERROR;
+                    level = NOTIFY_LEVEL_ERROR;
+                    break;
+                default:
+                    iconType = NIIF_INFO;
+                    level = NOTIFY_LEVEL_INFO;
+                    break;
+            }
+            
+            // Display notification now that we're out of the hook context
+            if (g_customNotifications) {
+                g_customNotifications->ShowNotification(title, message, 4000, level);
+            }
+            
+            // Clean up dynamically allocated message
+            if (deferredMessage) {
+                free(deferredMessage);
+            }
+            break;
+        }
+        
         case WM_CLOSE:
             DestroyWindow(hwnd);
             break;
@@ -133,8 +269,16 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
             RemoveTrayIcon(hwnd);
             UnregisterHotKey(hwnd, HOTKEY_ID_LOCK);
             UnregisterHotKey(hwnd, HOTKEY_ID_UNLOCK);
+            UnregisterHotKey(hwnd, 9001); // Boss key hotkey
             UninstallHook();
+            CleanupCustomNotifications();
+            CleanupAudio();
             PostQuitMessage(0);
+            break;
+            
+        case WM_DEVICECHANGE:
+            // Handle USB device changes for productivity features
+            g_productivityManager.HandleDeviceChange(wParam, lParam);
             break;
             
         default:
@@ -157,16 +301,15 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         return 0;
     }
 
-    // ✅ CORRECTED CODE: Create a message-only window.
-    // This is the key change. A message-only window is invisible by design
-    // and will not appear in the taskbar or Alt+Tab switcher.
+    // Create a hidden window that can be controlled by privacy settings
+    // This allows the Alt+Tab hiding feature to work properly
     HWND hwnd = CreateWindowEx(
-        0,                   // No extended styles needed
+        WS_EX_TOOLWINDOW,    // Tool window - hidden from taskbar by default
         CLASS_NAME,
         "UtilityApp",        // Window title (not visible)
-        0,                   // No window styles needed
-        0, 0, 0, 0,          // Position and size are irrelevant
-        HWND_MESSAGE,        // <--- THIS IS THE CRITICAL PART
+        WS_OVERLAPPED,       // Normal window style but will be hidden
+        CW_USEDEFAULT, CW_USEDEFAULT, 1, 1,  // Minimal size
+        NULL,                // No parent window
         NULL,
         hInstance,
         NULL
@@ -176,6 +319,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         MessageBoxA(NULL, "Window Creation Failed!", "Error", MB_OK | MB_ICONERROR);
         return 0;
     }
+    
+    // Store global reference for settings updates
+    g_mainWindow = hwnd;
     
     // The ShowWindow(hwnd, SW_HIDE) call is no longer necessary,
     // as a message-only window is never shown.
@@ -188,4 +334,23 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     }
 
     return (int)msg.wParam;
+}
+
+// Function to register hotkeys based on current settings
+void RegisterHotkeyFromSettings(HWND hwnd) {
+    // Unregister existing hotkeys first
+    UnregisterHotKey(hwnd, HOTKEY_ID_LOCK);
+    UnregisterHotKey(hwnd, HOTKEY_ID_UNLOCK);
+    
+    // Register lock hotkey from settings
+    if (!RegisterHotKey(hwnd, HOTKEY_ID_LOCK, g_appSettings.hotkeyModifiers, g_appSettings.hotkeyVirtualKey)) {
+        MessageBoxA(hwnd, "Failed to register lock hotkey!", "Error", MB_OK | MB_ICONERROR);
+        ShowNotification(hwnd, NOTIFY_HOTKEY_ERROR, "Failed to register lock hotkey");
+    }
+    
+    // Register regular unlock hotkey (Ctrl+O)
+    if (!RegisterHotKey(hwnd, HOTKEY_ID_UNLOCK, MOD_CONTROL, 'O')) {
+        MessageBoxA(hwnd, "Failed to register unlock hotkey!", "Error", MB_OK | MB_ICONERROR);
+        ShowNotification(hwnd, NOTIFY_HOTKEY_ERROR, "Failed to register unlock hotkey");
+    }
 }

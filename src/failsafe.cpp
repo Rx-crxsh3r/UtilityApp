@@ -1,6 +1,7 @@
 // src/failsafe.cpp
 
 #include "failsafe.h"
+#include "resource.h"
 
 // Failsafe configuration
 const int FAILSAFE_KEY_COUNT = 3;
